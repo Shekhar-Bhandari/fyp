@@ -1,30 +1,20 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Container } from '@mui/material';
-import { Provider } from 'react-redux';
-import { store } from './store';
-import Navbar from './components/Navbar';
-import Auth from './pages/Auth';
-
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Auth from "./pages/Auth";
+import Home from "./pages/Home";
+import CreatePost from "./pages/CreatePost";
 import { Toaster } from "react-hot-toast";
-import Home from './pages/Home';
 
 function App() {
   return (
-    <Provider store={store}>
-      <Router>
-        <Container maxWidth="lg">
-          <Navbar />
-          <Routes>
-            <Route path="/home" element={<Home />} />
-            
-            <Route path="/auth" element={<Auth />} />
-            
-          </Routes>
-        </Container>
-      </Router>
-      <Toaster/>
-    </Provider>
+    <Router>
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/create-post" element={<CreatePost />} />
+      </Routes>
+      <Toaster />
+    </Router>
   );
 }
 

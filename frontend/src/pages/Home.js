@@ -1,48 +1,49 @@
-// src/pages/Home.js
-import React from "react";
-import { AppBar, Toolbar, Typography, Button, Container, Box } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from 'react';
+import { Container, Button, Card, CardContent, CardMedia, Typography, Grid } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import PostServices from '../Services/PostServices';
 
 const Home = () => {
+  const [posts, setPosts] = useState([]);
   const navigate = useNavigate();
 
-  const handleCreatePost = () => {
-    navigate("/create-post"); // Redirect to create post page (you can create this later)
+  const fetchPosts = async () => {
+    try {
+      const res = await PostServices.getAllPosts();
+      setPosts(res.data);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
   return (
-    <div>
-      {/* Top AppBar */}
-      <AppBar position="static" color="primary">
-        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-          {/* Logo */}
-          <Typography variant="h6" component="div">
-            MyLogo
-          </Typography>
+    <Container>
+      <Grid container justifyContent="space-between" alignItems="center" sx={{ marginTop: 2 }}>
+        <Typography variant="h4">MyApp Logo</Typography>
+        <Button variant="contained" color="primary" onClick={() => navigate('/create-post')}>
+          Create Post
+        </Button>
+      </Grid>
 
-          {/* Create Post Button */}
-          <Button color="inherit" onClick={handleCreatePost}>
-            Create Post
-          </Button>
-        </Toolbar>
-      </AppBar>
-
-      {/* Main Content */}
-      <Container maxWidth="md" sx={{ marginTop: 4 }}>
-        <Box>
-          <Typography variant="h5" align="center">
-            Welcome to the Homepage
-          </Typography>
-
-          {/* Posts will go here */}
-          <Box sx={{ marginTop: 4 }}>
-            <Typography variant="body1" align="center" color="textSecondary">
-              No posts yet. Click "Create Post" to add a new post.
-            </Typography>
-          </Box>
-        </Box>
-      </Container>
-    </div>
+      <Grid container direction="column" sx={{ marginTop: 2 }}>
+        {posts.map((post) => (
+          <Card key={post._id} sx={{ marginBottom: 2 }}>
+            {post.image && <CardMedia component="img" height="200" image={post.image} alt={post.title} />}
+            <CardContent>
+              <Typography variant="h6">{post.title}</Typography>
+              <Typography variant="body1">{post.description}</Typography>
+              <Typography variant="subtitle2">
+                By: {post.user ? post.user.name : 'Unknown'}
+              </Typography>
+            </CardContent>
+          </Card>
+        ))}
+      </Grid>
+    </Container>
   );
 };
 

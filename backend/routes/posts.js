@@ -35,6 +35,19 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
+// -------------------- GET ALL POSTS --------------------
+router.get('/', async (req, res) => {
+  try {
+    const posts = await Post.find()
+      .populate('user', 'name profileImage')
+      .sort({ createdAt: -1 }); // newest first
+    res.json(posts);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error fetching posts' });
+  }
+});
+
 // -------------------- UPDATE POST --------------------
 router.put('/:id', protect, async (req, res) => {
   try {
@@ -42,19 +55,14 @@ router.put('/:id', protect, async (req, res) => {
     const post = await Post.findById(req.params.id);
 
     if (!post) return res.status(404).json({ message: 'Post not found' });
-
     if (post.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to edit this post' });
     }
 
-    if (title && title.length > 200) {
-      return res.status(400).json({ message: 'Title too long (max 200 characters)' });
-    }
-
     const updatedData = {};
-    if (title !== undefined) updatedData.title = title.trim();
-    if (description !== undefined) updatedData.description = description.trim();
-    if (image !== undefined) updatedData.image = image;
+    if (title) updatedData.title = title.trim();
+    if (description) updatedData.description = description.trim();
+    if (image) updatedData.image = image;
 
     const updatedPost = await Post.findByIdAndUpdate(req.params.id, updatedData, { new: true })
       .populate('user', 'name profileImage');
@@ -75,13 +83,11 @@ router.delete('/:id', protect, async (req, res) => {
     const post = await Post.findById(req.params.id);
 
     if (!post) return res.status(404).json({ message: 'Post not found' });
-
     if (post.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
     await Post.findByIdAndDelete(req.params.id);
-
     res.json({ message: 'Post deleted successfully', deletedPostId: req.params.id });
   } catch (error) {
     console.error('Error deleting post:', error);
