@@ -3,17 +3,13 @@ const router = express.Router();
 const Post = require('../models/Post');
 const { protect } = require('../middleware/auth');
 
-// -------------------- CREATE POST --------------------
+// ✅ CREATE POST (requires token)
 router.post('/', protect, async (req, res) => {
   try {
     const { title, description, image } = req.body;
 
     if (!title || !description) {
       return res.status(400).json({ message: 'Title and description are required' });
-    }
-
-    if (title.length > 200) {
-      return res.status(400).json({ message: 'Title too long (max 200 characters)' });
     }
 
     const post = await Post.create({
@@ -35,20 +31,19 @@ router.post('/', protect, async (req, res) => {
   }
 });
 
-// -------------------- GET ALL POSTS --------------------
+// ✅ GET ALL POSTS (public)
 router.get('/', async (req, res) => {
   try {
     const posts = await Post.find()
       .populate('user', 'name profileImage')
-      .sort({ createdAt: -1 }); // newest first
+      .sort({ createdAt: -1 });
     res.json(posts);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: 'Error fetching posts' });
   }
 });
 
-// -------------------- UPDATE POST --------------------
+// ✅ UPDATE POST (requires token)
 router.put('/:id', protect, async (req, res) => {
   try {
     const { title, description, image } = req.body;
@@ -59,17 +54,16 @@ router.put('/:id', protect, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to edit this post' });
     }
 
-    const updatedData = {};
-    if (title) updatedData.title = title.trim();
-    if (description) updatedData.description = description.trim();
-    if (image) updatedData.image = image;
+    post.title = title || post.title;
+    post.description = description || post.description;
+    post.image = image || post.image;
 
-    const updatedPost = await Post.findByIdAndUpdate(req.params.id, updatedData, { new: true })
-      .populate('user', 'name profileImage');
+    const updatedPost = await post.save();
+    const populated = await Post.findById(updatedPost._id).populate('user', 'name profileImage');
 
     res.json({
       message: 'Post updated successfully',
-      post: updatedPost
+      post: populated
     });
   } catch (error) {
     console.error('Error updating post:', error);
@@ -77,7 +71,7 @@ router.put('/:id', protect, async (req, res) => {
   }
 });
 
-// -------------------- DELETE POST --------------------
+// ✅ DELETE POST (requires token)
 router.delete('/:id', protect, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -87,7 +81,7 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
-    await Post.findByIdAndDelete(req.params.id);
+    await post.deleteOne();
     res.json({ message: 'Post deleted successfully', deletedPostId: req.params.id });
   } catch (error) {
     console.error('Error deleting post:', error);

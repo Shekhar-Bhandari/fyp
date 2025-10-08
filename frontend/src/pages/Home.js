@@ -1,7 +1,16 @@
-import React, { useEffect, useState } from 'react';
-import { Container, Button, Card, CardContent, CardMedia, Typography, Grid } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
-import PostServices from '../Services/PostServices';
+// src/pages/Home.js
+import React, { useEffect, useState } from "react";
+import {
+  Container,
+  Button,
+  Card,
+  CardContent,
+  CardMedia,
+  Typography,
+  Grid,
+} from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import PostServices from "../Services/PostServices";
 
 const Home = () => {
   const [posts, setPosts] = useState([]);
@@ -24,7 +33,7 @@ const Home = () => {
     <Container>
       <Grid container justifyContent="space-between" alignItems="center" sx={{ marginTop: 2 }}>
         <Typography variant="h4">MyApp Logo</Typography>
-        <Button variant="contained" color="primary" onClick={() => navigate('/create-post')}>
+        <Button variant="contained" color="primary" onClick={() => navigate("/create-post")}>
           Create Post
         </Button>
       </Grid>
@@ -37,7 +46,7 @@ const Home = () => {
               <Typography variant="h6">{post.title}</Typography>
               <Typography variant="body1">{post.description}</Typography>
               <Typography variant="subtitle2">
-                By: {post.user ? post.user.name : 'Unknown'}
+                By: {post.user ? post.user.name : "Unknown"}
               </Typography>
             </CardContent>
           </Card>

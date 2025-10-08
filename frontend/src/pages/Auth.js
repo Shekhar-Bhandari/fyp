@@ -23,10 +23,23 @@ const Auth = () => {
       if (isSignup) {
         await AuthServices.registerUser(formData);
         toast.success("Registered successfully! Please login.");
-        setIsSignup(false); // switch to login
+        setIsSignup(false);
       } else {
         const res = await AuthServices.loginUser(formData);
-        localStorage.setItem("todoapp", JSON.stringify(res.data));
+
+        // ✅ Save token separately
+        localStorage.setItem("token", res.data.token);
+
+        // Save user info (optional)
+        localStorage.setItem(
+          "user",
+          JSON.stringify({
+            _id: res.data._id,
+            name: res.data.name,
+            email: res.data.email,
+          })
+        );
+
         toast.success("Login successful!");
         navigate("/home"); // redirect to home page
       }
@@ -40,7 +53,10 @@ const Auth = () => {
 
   return (
     <Container component="main" maxWidth="xs">
-      <Paper elevation={3} sx={{ padding: 4, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <Paper
+        elevation={3}
+        sx={{ padding: 4, display: "flex", flexDirection: "column", alignItems: "center" }}
+      >
         <Avatar sx={{ margin: 1, backgroundColor: "secondary.main" }}>
           <LockOutlinedIcon />
         </Avatar>
@@ -49,11 +65,19 @@ const Auth = () => {
         </Typography>
         <form onSubmit={handleSubmit}>
           <Grid container spacing={2}>
-            {isSignup && <Input name="name" label="Name" handleChange={handleChange} autoFocus half />}
+            {isSignup && (
+              <Input name="name" label="Name" handleChange={handleChange} autoFocus half />
+            )}
             <Input name="email" label="Email" handleChange={handleChange} type="email" />
             <Input name="password" label="Password" handleChange={handleChange} type="password" />
           </Grid>
-          <Button type="submit" fullWidth variant="contained" color="primary" sx={{ margin: "20px 0" }}>
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            color="primary"
+            sx={{ margin: "20px 0" }}
+          >
             {isSignup ? "Sign Up" : "Sign In"}
           </Button>
           <Grid container justifyContent="flex-end">
