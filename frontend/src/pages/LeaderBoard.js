@@ -7,20 +7,22 @@ import {
   CardMedia,
   Typography,
   Grid,
+  Box,
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useNavigate } from "react-router-dom";
 import PostServices from "../Services/PostServices";
 import toast from "react-hot-toast";
 
-const Home = () => {
+const Leaderboard = () => {
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Update currentUser on mount and whenever localStorage changes
+  // Update currentUser on mount
   const updateUser = () => {
     const user = JSON.parse(localStorage.getItem("todoapp"));
     setCurrentUser(user);
@@ -28,22 +30,27 @@ const Home = () => {
 
   useEffect(() => {
     updateUser();
-    fetchPosts();
+    fetchTopPosts();
 
-    // Listen to localStorage changes (from other tabs or after login)
     window.addEventListener("storage", updateUser);
     return () => window.removeEventListener("storage", updateUser);
   }, []);
 
-  // Fetch posts
-  const fetchPosts = async () => {
+  // Fetch all posts, sort by likes, and get top 10
+  const fetchTopPosts = async () => {
     try {
       setLoading(true);
       const res = await PostServices.getAllPosts();
-      setPosts(res.data);
+      
+      // Sort posts by number of likes (descending) and get top 10
+      const topPosts = res.data
+        .sort((a, b) => b.likes.length - a.likes.length)
+        .slice(0, 10);
+      
+      setPosts(topPosts);
     } catch (error) {
       console.error("Error fetching posts:", error);
-      toast.error("Failed to load posts");
+      toast.error("Failed to load leaderboard");
     } finally {
       setLoading(false);
     }
@@ -53,12 +60,11 @@ const Home = () => {
   const handleLogout = () => {
     localStorage.removeItem("todoapp");
     setCurrentUser(null);
-    setPosts([]); // Clear posts on logout
     toast.success("Logged out successfully");
     navigate("/auth");
   };
 
-  // Like/unlike - user can only like once per post
+  // Like/unlike
   const handleLike = async (postId) => {
     if (!currentUser?.token) {
       toast.error("You must be logged in to like a post");
@@ -100,9 +106,18 @@ const Home = () => {
         alignItems="center" 
         sx={{ mt: 2, mb: 3 }}
       >
-        <Typography variant="h4" sx={{ fontWeight: "bold" }}>
-          MyApp Logo
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate("/home")}
+          >
+            Back to Home
+          </Button>
+          <Typography variant="h4" sx={{ fontWeight: "bold" }}>
+            🏆 Leaderboard - Top 10 Posts
+          </Typography>
+        </Box>
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {currentUser ? (
@@ -128,13 +143,6 @@ const Home = () => {
               Login
             </Button>
           )}
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate("/create-post")}
-          >
-            Create Post
-          </Button>
         </div>
       </Grid>
 
@@ -142,14 +150,14 @@ const Home = () => {
       <Grid container direction="column">
         {loading ? (
           <Typography variant="body1" sx={{ mt: 4, textAlign: "center" }}>
-            Loading posts...
+            Loading leaderboard...
           </Typography>
         ) : posts.length === 0 ? (
           <Typography variant="body1" sx={{ mt: 4, textAlign: "center" }}>
-            No posts available. Be the first to create one!
+            No posts available yet.
           </Typography>
         ) : (
-          posts.map((post) => {
+          posts.map((post, index) => {
             // Check if current user has liked this post
             const likedByUser = post.likes.some(
               (like) => (like.user?._id || like.user) === currentUser?._id
@@ -157,6 +165,34 @@ const Home = () => {
 
             return (
               <Card key={post._id} sx={{ mb: 2 }}>
+                {/* Rank Badge */}
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: 10,
+                    right: 10,
+                    backgroundColor:
+                      index === 0
+                        ? "#FFD700"
+                        : index === 1
+                        ? "#C0C0C0"
+                        : index === 2
+                        ? "#CD7F32"
+                        : "#f0f0f0",
+                    borderRadius: "50%",
+                    width: 50,
+                    height: 50,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontWeight: "bold",
+                    fontSize: "1.2rem",
+                    zIndex: 10,
+                  }}
+                >
+                  #{index + 1}
+                </Box>
+
                 {post.image && (
                   <CardMedia 
                     component="img" 
@@ -176,16 +212,31 @@ const Home = () => {
                     By: {post.user ? post.user.name : "Unknown"}
                   </Typography>
 
-                  <Button
-                    onClick={() => handleLike(post._id)}
-                    color={likedByUser ? "primary" : "default"}
-                    startIcon={<ThumbUpIcon />}
-                    sx={{ mt: 2 }}
-                    disabled={!currentUser?.token}
-                    variant={likedByUser ? "contained" : "outlined"}
-                  >
-                    {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
-                  </Button>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>
+                    <Button
+                      onClick={() => handleLike(post._id)}
+                      color={likedByUser ? "primary" : "default"}
+                      startIcon={<ThumbUpIcon />}
+                      disabled={!currentUser?.token}
+                      variant={likedByUser ? "contained" : "outlined"}
+                    >
+                      {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
+                    </Button>
+                    
+                    {/* Show ranking info */}
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        ml: 2,
+                        p: 1,
+                        backgroundColor: "#f0f0f0",
+                        borderRadius: 1,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Rank: #{index + 1}
+                    </Typography>
+                  </Box>
                 </CardContent>
               </Card>
             );
@@ -196,4 +247,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default Leaderboard;

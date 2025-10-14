@@ -27,16 +27,14 @@ const Auth = () => {
       } else {
         const res = await AuthServices.loginUser(formData);
 
-        // ✅ Save token separately
-        localStorage.setItem("token", res.data.token);
-
-        // Save user info (optional)
+        // ✅ FIXED: Save everything under "todoapp" key
         localStorage.setItem(
-          "user",
+          "todoapp",
           JSON.stringify({
             _id: res.data._id,
             name: res.data.name,
             email: res.data.email,
+            token: res.data.token,
           })
         );
 

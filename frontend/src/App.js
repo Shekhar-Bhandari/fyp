@@ -4,6 +4,7 @@ import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import CreatePost from "./pages/CreatePost";
 import { Toaster } from "react-hot-toast";
+import Leaderboard from "./pages/LeaderBoard";
 
 function App() {
   return (
@@ -12,6 +13,8 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/home" element={<Home />} />
         <Route path="/create-post" element={<CreatePost />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+
       </Routes>
       <Toaster />
     </Router>
