@@ -7,18 +7,34 @@ import {
   CardMedia,
   Typography,
   Grid,
+  AppBar,
+  Toolbar,
+  Box,
+  IconButton,
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
+import HomeIcon from "@mui/icons-material/Home";
+import LeaderboardIcon from "@mui/icons-material/Leaderboard";
+import PersonIcon from "@mui/icons-material/Person";
 import { useNavigate } from "react-router-dom";
 import PostServices from "../Services/PostServices";
 import toast from "react-hot-toast";
+import DarkModeToggle, { useDarkMode } from "../components/DarkModeToggle";
 
 const Home = () => {
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeNav, setActiveNav] = useState("home");
+  const darkMode = useDarkMode();
   const navigate = useNavigate();
+
+  // Dark mode colors
+  const bgColor = darkMode ? "#1a1a1a" : "#f5f5f5";
+  const cardBgColor = darkMode ? "#2d2d2d" : "#ffffff";
+  const textColor = darkMode ? "#ffffff" : "#000000";
+  const secondaryTextColor = darkMode ? "#b0b0b0" : "#666666";
 
   // Update currentUser on mount and whenever localStorage changes
   const updateUser = () => {
@@ -91,43 +107,93 @@ const Home = () => {
     }
   };
 
-  return (
-    <Container>
-      {/* Header */}
-      <Grid 
-        container 
-        justifyContent="space-between" 
-        alignItems="center" 
-        sx={{ mt: 2, mb: 3 }}
-      >
-        <Typography variant="h4" sx={{ fontWeight: "bold" }}>
-          MyApp Logo
-        </Typography>
+  // Navigation handlers
+  const handleNavClick = (navItem) => {
+    setActiveNav(navItem);
+    if (navItem === "home") {
+      navigate("/home");
+    } else if (navItem === "leaderboard") {
+      navigate("/leaderboard");
+    } else if (navItem === "profile") {
+      navigate("/profile");
+    }
+  };
 
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+  return (
+    <Box sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}>
+      {/* Navigation Bar */}
+      <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
+            MyApp
+          </Typography>
+
+          <DarkModeToggle />
+
+          {/* Navigation Buttons */}
+          <Box sx={{ display: "flex", gap: 1, mr: 2, ml: 2 }}>
+            <Button
+              startIcon={<HomeIcon />}
+              onClick={() => handleNavClick("home")}
+              variant={activeNav === "home" ? "contained" : "text"}
+              color="primary"
+            >
+              Home
+            </Button>
+            <Button
+              startIcon={<LeaderboardIcon />}
+              onClick={() => handleNavClick("leaderboard")}
+              variant={activeNav === "leaderboard" ? "contained" : "text"}
+              color="primary"
+            >
+              Leaderboard
+            </Button>
+            <Button
+              startIcon={<PersonIcon />}
+              onClick={() => handleNavClick("profile")}
+              variant={activeNav === "profile" ? "contained" : "text"}
+              color="primary"
+            >
+              Profile
+            </Button>
+          </Box>
+
+          {/* User Info & Actions */}
           {currentUser ? (
-            <>
-              <Typography variant="subtitle1" component="span">
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Typography variant="body2" sx={{ color: textColor }}>
                 Hello, {currentUser?.name}!
               </Typography>
-              <Button
-                variant="outlined"
+              <IconButton
                 color="error"
-                startIcon={<LogoutIcon />}
                 onClick={handleLogout}
+                size="small"
+                title="Logout"
               >
-                Logout
-              </Button>
-            </>
+                <LogoutIcon />
+              </IconButton>
+            </Box>
           ) : (
             <Button
-              variant="contained"
+              variant="outlined"
               color="primary"
+              size="small"
               onClick={() => navigate("/auth")}
             >
               Login
             </Button>
           )}
+        </Toolbar>
+      </AppBar>
+
+      {/* Main Content */}
+      <Container sx={{ mt: 3, pb: 4 }}>
+        {/* Header Actions */}
+        <Grid 
+          container 
+          justifyContent="flex-end" 
+          sx={{ mb: 3 }}
+        >
           <Button
             variant="contained"
             color="primary"
@@ -135,64 +201,64 @@ const Home = () => {
           >
             Create Post
           </Button>
-        </div>
-      </Grid>
+        </Grid>
 
-      {/* Posts Section */}
-      <Grid container direction="column">
-        {loading ? (
-          <Typography variant="body1" sx={{ mt: 4, textAlign: "center" }}>
-            Loading posts...
-          </Typography>
-        ) : posts.length === 0 ? (
-          <Typography variant="body1" sx={{ mt: 4, textAlign: "center" }}>
-            No posts available. Be the first to create one!
-          </Typography>
-        ) : (
-          posts.map((post) => {
-            // Check if current user has liked this post
-            const likedByUser = post.likes.some(
-              (like) => (like.user?._id || like.user) === currentUser?._id
-            );
+        {/* Posts Section */}
+        <Grid container direction="column">
+          {loading ? (
+            <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
+              Loading posts...
+            </Typography>
+          ) : posts.length === 0 ? (
+            <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
+              No posts available. Be the first to create one!
+            </Typography>
+          ) : (
+            posts.map((post) => {
+              // Check if current user has liked this post
+              const likedByUser = post.likes.some(
+                (like) => (like.user?._id || like.user) === currentUser?._id
+              );
 
-            return (
-              <Card key={post._id} sx={{ mb: 2 }}>
-                {post.image && (
-                  <CardMedia 
-                    component="img" 
-                    height="200" 
-                    image={post.image} 
-                    alt={post.title}
-                  />
-                )}
-                <CardContent>
-                  <Typography variant="h6" sx={{ fontWeight: "bold" }}>
-                    {post.title}
-                  </Typography>
-                  <Typography variant="body1" sx={{ my: 1 }}>
-                    {post.description}
-                  </Typography>
-                  <Typography variant="subtitle2" color="textSecondary">
-                    By: {post.user ? post.user.name : "Unknown"}
-                  </Typography>
+              return (
+                <Card key={post._id} sx={{ mb: 2, backgroundColor: cardBgColor }}>
+                  {post.image && (
+                    <CardMedia 
+                      component="img" 
+                      height="200" 
+                      image={post.image} 
+                      alt={post.title}
+                    />
+                  )}
+                  <CardContent>
+                    <Typography variant="h6" sx={{ fontWeight: "bold", color: textColor }}>
+                      {post.title}
+                    </Typography>
+                    <Typography variant="body1" sx={{ my: 1, color: textColor }}>
+                      {post.description}
+                    </Typography>
+                    <Typography variant="subtitle2" sx={{ color: secondaryTextColor }}>
+                      By: {post.user ? post.user.name : "Unknown"}
+                    </Typography>
 
-                  <Button
-                    onClick={() => handleLike(post._id)}
-                    color={likedByUser ? "primary" : "default"}
-                    startIcon={<ThumbUpIcon />}
-                    sx={{ mt: 2 }}
-                    disabled={!currentUser?.token}
-                    variant={likedByUser ? "contained" : "outlined"}
-                  >
-                    {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </Grid>
-    </Container>
+                    <Button
+                      onClick={() => handleLike(post._id)}
+                      color={likedByUser ? "primary" : "default"}
+                      startIcon={<ThumbUpIcon />}
+                      sx={{ mt: 2 }}
+                      disabled={!currentUser?.token}
+                      variant={likedByUser ? "contained" : "outlined"}
+                    >
+                      {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </Grid>
+      </Container>
+    </Box>
   );
 };
 
