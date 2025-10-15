@@ -11,6 +11,7 @@ import {
   Toolbar,
   Box,
   IconButton,
+  Avatar, // 👈 Import Avatar for the user icon
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -119,9 +120,30 @@ const Home = () => {
     }
   };
 
+  /**
+   * Navigate to a user's profile page.
+   * FIX: This now navigates to a public profile route: /profile/:userId
+   * Make sure you have this route set up in your React Router configuration!
+   * @param {string | null} userId - The ID of the user to view.
+   */
+  const handleViewProfile = (userId) => {
+    if (userId) {
+      // If the user clicks on their own name, go to the generic profile
+      if (userId === currentUser?._id) {
+        navigate("/profile");
+      } else {
+        // Navigate to the public profile (e.g., /profile/65c82a3c7c8c363d6b7b2571)
+        navigate(`/profile/${userId}`); 
+        // You'll need to create a component to handle public profile views at this route.
+      }
+    } else {
+      toast.error("User information is unavailable.");
+    }
+  };
+
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}>
-      {/* Navigation Bar */}
+      {/* Navigation Bar - (Unchanged) */}
       <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
@@ -219,33 +241,85 @@ const Home = () => {
               const likedByUser = post.likes.some(
                 (like) => (like.user?._id || like.user) === currentUser?._id
               );
+              
+              const postUser = post.user;
+              const postUserId = postUser?._id;
+              const postUserName = postUser?.name || "Unknown";
 
               return (
                 <Card key={post._id} sx={{ mb: 2, backgroundColor: cardBgColor }}>
+                  <CardContent sx={{ pb: '16px !important' }}> {/* Ensures consistent padding */}
+                    
+                    {/* 👇 MODIFIED: User Icon & Name (Facebook-style header) */}
+                    <Box 
+                      sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        mb: 2, 
+                        cursor: postUser ? 'pointer' : 'default',
+                      }}
+                      onClick={() => handleViewProfile(postUserId)}
+                    >
+                      {/* User Avatar */}
+                      <Avatar sx={{ 
+                        width: 40, 
+                        height: 40, 
+                        mr: 1.5,
+                        bgcolor: 'primary.main',
+                      }}>
+                        {postUserName.charAt(0).toUpperCase()}
+                      </Avatar>
+
+                      {/* User Name and Post Metadata (if any) */}
+                      <Box>
+                        <Typography
+                          variant="subtitle1"
+                          sx={{
+                            color: postUser ? "primary.main" : secondaryTextColor, 
+                            fontWeight: 'bold',
+                            lineHeight: 1.2,
+                            "&:hover": postUser ? { textDecoration: "underline" } : {}
+                          }}
+                        >
+                          {postUserName}
+                        </Typography>
+                        {/* Optional: Add a timestamp/date here if your post object includes it */}
+                        {/* <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                          {new Date(post.createdAt).toLocaleString()} 
+                        </Typography> */}
+                      </Box>
+                    </Box>
+                    {/* 👆 MODIFIED: User Icon & Name */}
+
+                    {/* Title and Description */}
+                    <Typography 
+                      variant="h6" 
+                      sx={{ fontWeight: "bold", color: textColor, mt: 1, mb: 0.5 }}
+                    >
+                      {post.title}
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 1.5, color: textColor }}>
+                      {post.description}
+                    </Typography>
+                  </CardContent>
+
+                  {/* Image (moved below text for typical feed layout, or keep it above CardContent if you prefer) */}
                   {post.image && (
                     <CardMedia 
                       component="img" 
                       height="200" 
                       image={post.image} 
                       alt={post.title}
+                      sx={{ borderTop: `1px solid ${darkMode ? '#333' : '#eee'}` }}
                     />
                   )}
-                  <CardContent>
-                    <Typography variant="h6" sx={{ fontWeight: "bold", color: textColor }}>
-                      {post.title}
-                    </Typography>
-                    <Typography variant="body1" sx={{ my: 1, color: textColor }}>
-                      {post.description}
-                    </Typography>
-                    <Typography variant="subtitle2" sx={{ color: secondaryTextColor }}>
-                      By: {post.user ? post.user.name : "Unknown"}
-                    </Typography>
-
+                  
+                  {/* Actions (Likes) */}
+                  <CardContent sx={{ pt: 1 }}> 
                     <Button
                       onClick={() => handleLike(post._id)}
                       color={likedByUser ? "primary" : "default"}
                       startIcon={<ThumbUpIcon />}
-                      sx={{ mt: 2 }}
                       disabled={!currentUser?.token}
                       variant={likedByUser ? "contained" : "outlined"}
                     >

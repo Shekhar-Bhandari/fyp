@@ -18,6 +18,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  Chip,
 } from "@mui/material";
 import {
   Settings as SettingsIcon,
@@ -31,6 +32,12 @@ import {
   Email as EmailIcon,
   Phone as PhoneIcon,
   CalendarToday as CalendarIcon,
+  School as SchoolIcon,
+  Work as WorkIcon,
+  Code as CodeIcon,
+  Favorite as FavoriteIcon,
+  GitHub as GitHubIcon,
+  LinkedIn as LinkedInIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -46,6 +53,12 @@ const Profile = () => {
     name: "",
     email: "",
     phone: "",
+    bio: "",
+    university: "",
+    major: "",
+    year: "",
+    github: "",
+    linkedin: "",
   });
   const navigate = useNavigate();
 
@@ -64,6 +77,12 @@ const Profile = () => {
         name: user.name || "",
         email: user.email || "",
         phone: user.phone || "",
+        bio: user.bio || "",
+        university: user.university || "",
+        major: user.major || "",
+        year: user.year || "",
+        github: user.github || "",
+        linkedin: user.linkedin || "",
       });
     }
   };
@@ -230,7 +249,12 @@ const Profile = () => {
                 <Typography variant="h4" sx={{ fontWeight: "bold", mb: 1 }}>
                   {currentUser?.name}
                 </Typography>
-                <Typography variant="body1" sx={{ color: secondaryTextColor, mb: 2 }}>
+                {currentUser?.bio && (
+                  <Typography variant="body1" sx={{ color: secondaryTextColor, mb: 2 }}>
+                    {currentUser.bio}
+                  </Typography>
+                )}
+                <Typography variant="body2" sx={{ color: secondaryTextColor, mb: 2 }}>
                   {currentUser?.email}
                 </Typography>
                 <Button
@@ -246,7 +270,7 @@ const Profile = () => {
           </CardContent>
         </Card>
 
-        {/* Profile Details Card */}
+        {/* Education & Contact Info Card */}
         <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
           <CardContent>
             <Typography variant="h6" sx={{ fontWeight: "bold", mb: 2 }}>
@@ -283,22 +307,167 @@ const Profile = () => {
                 </Box>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                  <CalendarIcon sx={{ color: secondaryTextColor }} />
-                  <Box>
-                    <Typography variant="caption" sx={{ color: secondaryTextColor }}>
-                      Member Since
-                    </Typography>
-                    <Typography variant="body1" sx={{ color: textColor }}>
-                      {new Date().toLocaleDateString()}
-                    </Typography>
+              {currentUser?.university && (
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <SchoolIcon sx={{ color: secondaryTextColor }} />
+                    <Box>
+                      <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                        University
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: textColor }}>
+                        {currentUser.university}
+                      </Typography>
+                    </Box>
                   </Box>
-                </Box>
-              </Grid>
+                </Grid>
+              )}
+
+              {currentUser?.major && (
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <WorkIcon sx={{ color: secondaryTextColor }} />
+                    <Box>
+                      <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                        Major
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: textColor }}>
+                        {currentUser.major}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
+
+              {currentUser?.year && (
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <CalendarIcon sx={{ color: secondaryTextColor }} />
+                    <Box>
+                      <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                        Year of Study
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: textColor }}>
+                        {currentUser.year}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              )}
             </Grid>
           </CardContent>
         </Card>
+
+        {/* Interests Card */}
+        {currentUser?.interests && currentUser.interests.length > 0 && (
+          <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <FavoriteIcon sx={{ color: "error.main" }} />
+                <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                  Interests
+                </Typography>
+              </Box>
+              <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {currentUser.interests.map((interest, index) => (
+                  <Chip 
+                    key={index} 
+                    label={interest} 
+                    color="primary" 
+                    variant="outlined"
+                    sx={{ color: textColor }}
+                  />
+                ))}
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Skills Card */}
+        {currentUser?.skills && currentUser.skills.length > 0 && (
+          <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                <CodeIcon sx={{ color: "success.main" }} />
+                <Typography variant="h6" sx={{ fontWeight: "bold" }}>
+                  Skills
+                </Typography>
+              </Box>
+              <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {currentUser.skills.map((skill, index) => (
+                  <Chip 
+                    key={index} 
+                    label={skill} 
+                    color="success" 
+                    variant="outlined"
+                    sx={{ color: textColor }}
+                  />
+                ))}
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Social Links Card */}
+        {(currentUser?.github || currentUser?.linkedin) && (
+          <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
+            <CardContent>
+              <Typography variant="h6" sx={{ fontWeight: "bold", mb: 2 }}>
+                Social Links
+              </Typography>
+              <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
+              <Grid container spacing={2}>
+                {currentUser?.github && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <GitHubIcon sx={{ color: secondaryTextColor }} />
+                      <Box>
+                        <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                          GitHub
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: textColor }}>
+                          <a 
+                            href={`https://github.com/${currentUser.github}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ color: darkMode ? "#58a6ff" : "#0969da", textDecoration: "none" }}
+                          >
+                            @{currentUser.github}
+                          </a>
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                )}
+
+                {currentUser?.linkedin && (
+                  <Grid item xs={12} sm={6}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <LinkedInIcon sx={{ color: secondaryTextColor }} />
+                      <Box>
+                        <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                          LinkedIn
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: textColor }}>
+                          <a 
+                            href={`https://linkedin.com/in/${currentUser.linkedin}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            style={{ color: darkMode ? "#58a6ff" : "#0969da", textDecoration: "none" }}
+                          >
+                            {currentUser.linkedin}
+                          </a>
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Grid>
+                )}
+              </Grid>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Settings Card */}
         <Card sx={{ backgroundColor: cardBgColor, color: textColor }}>
@@ -378,6 +547,24 @@ const Profile = () => {
             />
             <TextField
               fullWidth
+              label="Bio"
+              name="bio"
+              value={editForm.bio}
+              onChange={handleInputChange}
+              multiline
+              rows={3}
+              sx={{ 
+                mb: 2,
+                '& .MuiInputLabel-root': { color: secondaryTextColor },
+                '& .MuiOutlinedInput-root': { 
+                  color: textColor,
+                  '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" },
+                  '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" }
+                }
+              }}
+            />
+            <TextField
+              fullWidth
               label="Email"
               name="email"
               type="email"
@@ -398,6 +585,86 @@ const Profile = () => {
               label="Phone"
               name="phone"
               value={editForm.phone}
+              onChange={handleInputChange}
+              sx={{ 
+                mb: 2,
+                '& .MuiInputLabel-root': { color: secondaryTextColor },
+                '& .MuiOutlinedInput-root': { 
+                  color: textColor,
+                  '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" },
+                  '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" }
+                }
+              }}
+            />
+            <TextField
+              fullWidth
+              label="University"
+              name="university"
+              value={editForm.university}
+              onChange={handleInputChange}
+              sx={{ 
+                mb: 2,
+                '& .MuiInputLabel-root': { color: secondaryTextColor },
+                '& .MuiOutlinedInput-root': { 
+                  color: textColor,
+                  '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" },
+                  '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" }
+                }
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Major"
+              name="major"
+              value={editForm.major}
+              onChange={handleInputChange}
+              sx={{ 
+                mb: 2,
+                '& .MuiInputLabel-root': { color: secondaryTextColor },
+                '& .MuiOutlinedInput-root': { 
+                  color: textColor,
+                  '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" },
+                  '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" }
+                }
+              }}
+            />
+            <TextField
+              fullWidth
+              label="Year of Study"
+              name="year"
+              value={editForm.year}
+              onChange={handleInputChange}
+              sx={{ 
+                mb: 2,
+                '& .MuiInputLabel-root': { color: secondaryTextColor },
+                '& .MuiOutlinedInput-root': { 
+                  color: textColor,
+                  '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" },
+                  '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" }
+                }
+              }}
+            />
+            <TextField
+              fullWidth
+              label="GitHub Username"
+              name="github"
+              value={editForm.github}
+              onChange={handleInputChange}
+              sx={{ 
+                mb: 2,
+                '& .MuiInputLabel-root': { color: secondaryTextColor },
+                '& .MuiOutlinedInput-root': { 
+                  color: textColor,
+                  '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" },
+                  '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" }
+                }
+              }}
+            />
+            <TextField
+              fullWidth
+              label="LinkedIn Username"
+              name="linkedin"
+              value={editForm.linkedin}
               onChange={handleInputChange}
               sx={{ 
                 '& .MuiInputLabel-root': { color: secondaryTextColor },

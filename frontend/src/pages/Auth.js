@@ -39,7 +39,7 @@ const Auth = () => {
         );
 
         toast.success("Login successful!");
-        navigate("/home"); // redirect to home page
+        navigate("/profile-setup"); // redirect to home page
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");
