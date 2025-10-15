@@ -11,6 +11,8 @@ import {
   AppBar,
   Toolbar,
   IconButton,
+  TextField,
+  MenuItem
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -27,10 +29,11 @@ const Leaderboard = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState("leaderboard");
-  const darkMode = useDarkMode(); // ✅ added
+  const [specializationFilter, setSpecializationFilter] = useState("");
+  const darkMode = useDarkMode();
   const navigate = useNavigate();
 
-  // ✅ Dark mode colors
+  // Dark mode colors
   const bgColor = darkMode ? "#1a1a1a" : "#f5f5f5";
   const cardBgColor = darkMode ? "#2d2d2d" : "#ffffff";
   const textColor = darkMode ? "#ffffff" : "#000000";
@@ -49,10 +52,10 @@ const Leaderboard = () => {
     return () => window.removeEventListener("storage", updateUser);
   }, []);
 
-  const fetchTopPosts = async () => {
+  const fetchTopPosts = async (specialization = "") => {
     try {
       setLoading(true);
-      const res = await PostServices.getAllPosts();
+      const res = await PostServices.getAllPosts(specialization);
 
       const topPosts = res.data
         .sort((a, b) => b.likes.length - a.likes.length)
@@ -105,36 +108,30 @@ const Leaderboard = () => {
 
   const handleNavClick = (navItem) => {
     setActiveNav(navItem);
-    if (navItem === "home") {
-      navigate("/home");
-    } else if (navItem === "leaderboard") {
-      navigate("/leaderboard");
-    } else if (navItem === "profile") {
-      navigate("/profile");
-    }
+    if (navItem === "home") navigate("/home");
+    else if (navItem === "leaderboard") navigate("/leaderboard");
+    else if (navItem === "profile") navigate("/profile");
+  };
+
+  const handleSpecializationChange = (event) => {
+    const value = event.target.value;
+    setSpecializationFilter(value);
+    fetchTopPosts(value);
   };
 
   return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}>
+    <Box
+      sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}
+    >
       {/* Navigation Bar */}
-      <AppBar
-        position="static"
-        color="default"
-        elevation={1}
-        sx={{ backgroundColor: cardBgColor }}
-      >
+      <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
         <Toolbar>
-          <Typography
-            variant="h6"
-            sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}
-          >
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
             MyApp
           </Typography>
 
-          {/* ✅ Dark Mode Toggle */}
           <DarkModeToggle />
 
-          {/* Navigation Buttons */}
           <Box sx={{ display: "flex", gap: 1, mr: 2, ml: 2 }}>
             <Button
               startIcon={<HomeIcon />}
@@ -162,28 +159,17 @@ const Leaderboard = () => {
             </Button>
           </Box>
 
-          {/* User Info & Actions */}
           {currentUser ? (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Typography variant="body2" sx={{ color: textColor }}>
                 Hello, {currentUser?.name}!
               </Typography>
-              <IconButton
-                color="error"
-                onClick={handleLogout}
-                size="small"
-                title="Logout"
-              >
+              <IconButton color="error" onClick={handleLogout} size="small" title="Logout">
                 <LogoutIcon />
               </IconButton>
             </Box>
           ) : (
-            <Button
-              variant="outlined"
-              color="primary"
-              size="small"
-              onClick={() => navigate("/auth")}
-            >
+            <Button variant="outlined" color="primary" size="small" onClick={() => navigate("/auth")}>
               Login
             </Button>
           )}
@@ -198,19 +184,31 @@ const Leaderboard = () => {
           </Typography>
         </Box>
 
+        {/* Filter by Specialization */}
+        <Box sx={{ mb: 3, display: "flex", justifyContent: "center" }}>
+          <TextField
+            select
+            label="Filter by Specialization"
+            value={specializationFilter}
+            onChange={handleSpecializationChange}
+            sx={{ width: 300 }}
+            size="small"
+          >
+            <MenuItem value="">All</MenuItem>
+            <MenuItem value="Machine Learning">Machine Learning</MenuItem>
+            <MenuItem value="Web Development">Web Development</MenuItem>
+            <MenuItem value="Data Science">Data Science</MenuItem>
+            <MenuItem value="AI">AI</MenuItem>
+          </TextField>
+        </Box>
+
         <Grid container direction="column">
           {loading ? (
-            <Typography
-              variant="body1"
-              sx={{ mt: 4, textAlign: "center", color: textColor }}
-            >
+            <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
               Loading leaderboard...
             </Typography>
           ) : posts.length === 0 ? (
-            <Typography
-              variant="body1"
-              sx={{ mt: 4, textAlign: "center", color: textColor }}
-            >
+            <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
               No posts available yet.
             </Typography>
           ) : (
@@ -220,16 +218,7 @@ const Leaderboard = () => {
               );
 
               return (
-                <Card
-                  key={post._id}
-                  sx={{
-                    mb: 2,
-                    position: "relative",
-                    backgroundColor: cardBgColor,
-                    color: textColor,
-                  }}
-                >
-                  {/* Rank Badge */}
+                <Card key={post._id} sx={{ mb: 2, position: "relative", backgroundColor: cardBgColor, color: textColor }}>
                   <Box
                     sx={{
                       position: "absolute",
@@ -257,14 +246,8 @@ const Leaderboard = () => {
                     #{index + 1}
                   </Box>
 
-                  {post.image && (
-                    <CardMedia
-                      component="img"
-                      height="200"
-                      image={post.image}
-                      alt={post.title}
-                    />
-                  )}
+                  {post.image && <CardMedia component="img" height="200" image={post.image} alt={post.title} />}
+
                   <CardContent>
                     <Typography variant="h6" sx={{ fontWeight: "bold", color: textColor }}>
                       {post.title}
@@ -274,6 +257,9 @@ const Leaderboard = () => {
                     </Typography>
                     <Typography variant="subtitle2" sx={{ color: secondaryTextColor }}>
                       By: {post.user ? post.user.name : "Unknown"}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                      Specialization: {post.specialization}
                     </Typography>
 
                     <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>

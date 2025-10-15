@@ -1,9 +1,11 @@
 import api from "./api";
 
 const PostServices = {
-  getAllPosts: async () => {
+  getAllPosts: async (specialization = "") => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    return await api.get("/posts", {
+    let url = "/posts";
+    if (specialization) url += `?specialization=${encodeURIComponent(specialization)}`;
+    return await api.get(url, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
