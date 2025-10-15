@@ -9,6 +9,14 @@ const PostServices = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
+  // --- FUNCTION USED BY PROFILE PAGE ---
+  getMyPosts: async () => {
+    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+    return await api.get("/posts/my-posts", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  },
+  // -------------------------------------
 
   likePost: async (id) => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
@@ -37,6 +45,8 @@ const PostServices = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
+  
 };
+
 
 export default PostServices;

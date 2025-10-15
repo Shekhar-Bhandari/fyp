@@ -21,12 +21,16 @@ const PostSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  specialization: {          // ✅ New Field
+    type: String,
+    required: true
+  },
   likes: [
-      {
-        user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        likedAt: { type: Date, default: Date.now },
-      },
-    ],
+    {
+      user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      likedAt: { type: Date, default: Date.now },
+    },
+  ],
   comments: [{
     user: {
       type: mongoose.Schema.Types.ObjectId,
