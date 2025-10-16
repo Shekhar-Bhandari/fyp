@@ -4,6 +4,10 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
+
+// ⭐️ NEW: Import the nightly archive scheduler
+const startNightlyArchiveJob = require('./scheduler'); 
+
 // Load env vars
 dotenv.config();
 
@@ -30,7 +34,6 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Credentials', 'true');
   
-  // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -57,8 +60,11 @@ app.use((error, req, res, next) => {
   res.status(500).json({ message: 'Server Error' });
 });
 
-const PORT = process.env.PORT || 8080; // Make sure this is 8080
+const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  
+  // ⭐️ START THE CRON JOB HERE ⭐️
+  startNightlyArchiveJob();
 });

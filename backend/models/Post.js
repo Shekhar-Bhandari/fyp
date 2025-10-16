@@ -21,9 +21,14 @@ const PostSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
-  specialization: {          // ✅ New Field
+  specialization: {
     type: String,
     required: true
+  },
+  // ⭐️ NEW: Flag to control visibility on the live feed/leaderboard
+  isArchived: {
+    type: Boolean,
+    default: false 
   },
   likes: [
     {

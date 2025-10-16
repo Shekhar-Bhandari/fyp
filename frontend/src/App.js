@@ -8,11 +8,12 @@ import Home from "./pages/Home";
 import CreatePost from "./pages/CreatePost";
 import Leaderboard from "./pages/LeaderBoard";
 import Profile from "./pages/Profile";
-import PublicProfile from "./pages/PublicProfile1"; // 👈 NEW: Dynamic profile component
+import PublicProfile from "./pages/PublicProfile"; 
 
 // Components/Context
 import { DarkModeProvider } from "./components/DarkModeToggle"; 
 import ProfileSetup from "./pages/ProfileSetup";
+import ViewProfile from "./pages/ViewProfile";
 
 function App() {
   return (
@@ -32,9 +33,10 @@ function App() {
           <Route path="/profile" element={<Profile />} />
           
           {/* 2. Route for Other Users (dynamic with ID) */}
-        {/* <Route path="/profile/:userId" element={<PublicProfile />} />  */}  
+          {/* ⚠️ Note: I am assuming you intended to use ViewProfile, not PublicProfile */}
+          <Route path="/profile-view/:userId" element={<ViewProfile />} />
           <Route path="/profile-setup" element={<ProfileSetup/>} />
-
+          
         </Routes>
         <Toaster />
       </Router>

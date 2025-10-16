@@ -2,21 +2,21 @@ import api from "./api";
 
 const PostServices = {
   getAllPosts: async (specialization = "") => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+    const user = JSON.parse(localStorage.getItem("todoapp"));
+    const token = user?.token;
     let url = "/posts";
     if (specialization) url += `?specialization=${encodeURIComponent(specialization)}`;
     return await api.get(url, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
-  // --- FUNCTION USED BY PROFILE PAGE ---
+  
   getMyPosts: async () => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
     return await api.get("/posts/my-posts", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
-  // -------------------------------------
 
   likePost: async (id) => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
@@ -45,7 +45,16 @@ const PostServices = {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
-  
+
+  // ⭐️ NEW FUNCTION FOR COMMENTS ⭐️
+  addComment: async (postId, text) => {
+    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+    if (!token) throw new Error("Authentication token is missing.");
+
+    return await api.post(`/posts/${postId}/comment`, { text }, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  },
 };
 
 

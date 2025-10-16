@@ -4,7 +4,7 @@ import {
 } from '@mui/material';
 import { Close } from '@mui/icons-material';
 import { useDispatch } from 'react-redux';
-import { createPost } from '../services/api';
+import { createPost } from '../Services/api';
 
 const PostForm = ({ onPostCreated, editPost = null, onCancelEdit }) => {
   const [postData, setPostData] = useState({
