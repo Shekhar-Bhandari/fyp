@@ -1,4 +1,4 @@
-// src/pages/Auth.js
+// src/pages/Auth.js (Corrected)
 import React, { useState } from "react";
 import { Avatar, Button, Paper, Grid, Typography, Container } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -21,13 +21,15 @@ const Auth = () => {
 
     try {
       if (isSignup) {
-        await AuthServices.registerUser(formData);
+        // ✅ FIX: Changed AuthServices.registerUser to AuthServices.register
+        await AuthServices.register(formData); 
         toast.success("Registered successfully! Please login.");
         setIsSignup(false);
       } else {
-        const res = await AuthServices.loginUser(formData);
+        // ✅ FIX: Changed AuthServices.loginUser to AuthServices.login
+        const res = await AuthServices.login(formData);
 
-        // ✅ FIXED: Save everything under "todoapp" key
+        // Save everything under "todoapp" key
         localStorage.setItem(
           "todoapp",
           JSON.stringify({
@@ -35,6 +37,9 @@ const Auth = () => {
             name: res.data.name,
             email: res.data.email,
             token: res.data.token,
+            // Include profileSetupComplete status from the backend login response
+            profileSetupComplete: res.data.profileSetupComplete, 
+            profile: res.data.profile || null, // Include profile data if sent
           })
         );
 

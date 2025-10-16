@@ -1,3 +1,4 @@
+// AuthServices.js (Original - Names are correct here)
 import api from "./api";
 
 const AuthServices = {
