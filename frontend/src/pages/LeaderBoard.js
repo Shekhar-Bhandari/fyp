@@ -4,7 +4,7 @@ import {
   Button,
   Card,
   CardContent,
-  CardMedia, // 👈 FIX: CardMedia is now correctly imported
+  CardMedia,
   Typography,
   Grid,
   Box,
@@ -13,14 +13,16 @@ import {
   IconButton,
   TextField,
   MenuItem,
-  Collapse, // For expandable comment section
+  Collapse,
+  // ⭐️ NEW IMPORTS
+  Avatar, // Used for the comment section, good to have it available
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
 import HomeIcon from "@mui/icons-material/Home";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import PersonIcon from "@mui/icons-material/Person";
-import ChatBubbleIcon from "@mui/icons-material/ChatBubble"; // Comment icon
+import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import { useNavigate } from "react-router-dom";
 import PostServices from "../Services/PostServices";
 import toast from "react-hot-toast";
@@ -160,6 +162,19 @@ const Leaderboard = () => {
     else if (navItem === "profile") navigate("/profile");
   };
 
+  // ⭐️ NEW HANDLER: Profile View
+  const handleViewProfile = (userId) => {
+    if (userId) {
+      if (userId === currentUser?._id) {
+        navigate("/profile");
+      } else {
+        navigate(`/profile-view/${userId}`);
+      }
+    } else {
+      toast.error("User information is unavailable.");
+    }
+  };
+
   const handleSpecializationChange = (event) => {
     const value = event.target.value;
     setSpecializationFilter(value);
@@ -234,6 +249,11 @@ const Leaderboard = () => {
                 (like) => (like.user?._id || like.user) === currentUser?._id
               );
               const isExpanded = expandedPostId === post._id; 
+              
+              // ⭐️ NEW: Get post owner details
+              const postUser = post.user;
+              const postUserId = postUser?._id;
+              const postUserName = postUser?.name || "Unknown";
 
               return (
                 <Card key={post._id} sx={{ mb: 2, position: "relative", backgroundColor: cardBgColor, color: textColor }}>
@@ -263,7 +283,24 @@ const Leaderboard = () => {
                   <CardContent>
                     <Typography variant="h6" sx={{ fontWeight: "bold", color: textColor }}>{post.title}</Typography>
                     <Typography variant="body1" sx={{ my: 1, color: textColor }}>{post.description}</Typography>
-                    <Typography variant="subtitle2" sx={{ color: secondaryTextColor }}>By: {post.user ? post.user.name : "Unknown"}</Typography>
+                    
+                    {/* ⭐️ UPDATED: Make the owner's name clickable */}
+                    <Box 
+                        onClick={() => handleViewProfile(postUserId)}
+                        sx={{ cursor: postUser ? 'pointer' : 'default', mb: 1 }}
+                    >
+                        <Typography 
+                            variant="subtitle2" 
+                            sx={{ 
+                                color: secondaryTextColor,
+                                // Add hover effect to indicate clickability
+                                '&:hover': postUser && { textDecoration: 'underline', color: 'primary.main' }
+                            }}
+                        >
+                            By: {postUserName}
+                        </Typography>
+                    </Box>
+
                     <Typography variant="caption" sx={{ color: secondaryTextColor }}>Specialization: {post.specialization}</Typography>
 
                     {/* Like and Comment Buttons */}
@@ -324,9 +361,9 @@ const Leaderboard = () => {
 
                       {/* Display Comments */}
                       {post.comments.length > 0 ? (
-                        // Display the last 5 comments
-                        post.comments.slice(-5).map((comment, i) => ( 
-                          <Box key={i} sx={{ mb: 1, p: 1, backgroundColor: cardBgColor, borderRadius: 1 }}>
+                        // Display the last 5 comments (newest first)
+                        post.comments.slice().reverse().slice(0, 5).map((comment, i) => ( 
+                          <Box key={comment._id || i} sx={{ mb: 1, p: 1, backgroundColor: cardBgColor, borderRadius: 1 }}>
                             <Typography variant="body2" sx={{ fontWeight: "bold", color: textColor }}>
                               {comment.user?.name || "Anonymous"}:
                             </Typography>
@@ -336,20 +373,12 @@ const Leaderboard = () => {
                           </Box>
                         ))
                       ) : (
-                        <Typography variant="body2" sx={{ textAlign: "center", color: secondaryTextColor }}>
+                        <Typography variant="body2" sx={{ color: secondaryTextColor, textAlign: 'center' }}>
                           No comments yet. Be the first!
                         </Typography>
                       )}
-                      
-                      {post.comments.length > 5 && (
-                          <Typography variant="caption" sx={{ display: 'block', mt: 1, textAlign: 'center', color: 'primary.main', cursor: 'pointer' }}>
-                              View all {post.comments.length} comments
-                          </Typography>
-                      )}
                     </Box>
                   </Collapse>
-                  {/* END COLLAPSIBLE COMMENT SECTION */}
-
                 </Card>
               );
             })

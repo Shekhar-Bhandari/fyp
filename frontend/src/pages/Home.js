@@ -17,6 +17,9 @@ import {
   Tab,
   Dialog,
   DialogContent,
+  // ⭐️ NEW IMPORTS for Comments
+  TextField,
+  Collapse,
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -25,6 +28,8 @@ import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import PersonIcon from "@mui/icons-material/Person";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
+// ⭐️ NEW ICON
+import ChatBubbleIcon from "@mui/icons-material/ChatBubble"; 
 import { useNavigate } from "react-router-dom";
 import PostServices from "../Services/PostServices";
 import toast from "react-hot-toast";
@@ -55,6 +60,10 @@ const Home = () => {
   const [selectedSpec, setSelectedSpec] = useState("all");
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  // ⭐️ NEW STATE for Comments
+  const [expandedPostId, setExpandedPostId] = useState(null); 
+  const [newCommentText, setNewCommentText] = useState({}); 
+
   const darkMode = useDarkMode();
   const navigate = useNavigate();
 
@@ -62,6 +71,8 @@ const Home = () => {
   const cardBgColor = darkMode ? "#2d2d2d" : "#ffffff";
   const textColor = darkMode ? "#ffffff" : "#000000";
   const secondaryTextColor = darkMode ? "#b0b0b0" : "#666666";
+  // ⭐️ NEW COLOR
+  const commentBgColor = darkMode ? "#3a3a3a" : "#f0f0f0"; 
 
   const updateUser = () => {
     const user = JSON.parse(localStorage.getItem("todoapp"));
@@ -86,7 +97,8 @@ const Home = () => {
   const fetchPosts = async () => {
     try {
       setLoading(true);
-      const res = await PostServices.getAllPosts();
+      // Fetching all posts, backend handles decay sorting
+      const res = await PostServices.getAllPosts(); 
       setPosts(res.data);
     } catch (error) {
       console.error("Error fetching posts:", error);
@@ -112,33 +124,62 @@ const Home = () => {
     }
 
     try {
-      console.log('Liking post:', postId);
-      console.log('Current user:', currentUser._id);
-
       const res = await PostServices.likePost(postId);
       const updatedPost = res.data;
       
-      console.log('Like successful, updated post:', updatedPost);
-
-      // Update the posts state with the updated post
       setPosts((prevPosts) =>
         prevPosts.map((post) => 
           post._id === updatedPost._id ? updatedPost : post
         )
       );
       
-      // Check if the user liked or unliked
       const likedByUser = isPostLikedByUser(updatedPost, currentUser._id);
-      toast.success(likedByUser ? "Post liked!" : "Post unliked!");
+      toast.success(likedByUser ? "Post liked! 👍" : "Post unliked! 👎");
       
     } catch (error) {
       console.error("=== Like Error (Frontend) ===");
       console.error("Full error:", error);
-      console.error("Response data:", error.response?.data);
-      console.error("Response status:", error.response?.status);
-      
       toast.error(error.response?.data?.message || "Failed to like/unlike post");
     }
+  };
+
+  // ⭐️ NEW HANDLER: Add Comment
+  const handleAddComment = async (postId) => {
+    const text = newCommentText[postId]?.trim();
+    if (!text) {
+      toast.error("Comment cannot be empty.");
+      return;
+    }
+    if (!currentUser?.token) {
+      toast.error("You must be logged in to comment.");
+      navigate("/auth");
+      return;
+    }
+
+    try {
+      const res = await PostServices.addComment(postId, text);
+      const updatedPost = res.data; // Backend returns the updated post
+
+      // Update the local state with the new post data
+      setPosts((prevPosts) => 
+        prevPosts.map((post) => 
+          post._id === updatedPost._id ? updatedPost : post
+        )
+      );
+
+      // Clear the comment input for the specific post
+      setNewCommentText(prev => ({ ...prev, [postId]: "" }));
+      toast.success("Comment added! 💬");
+
+    } catch (error) {
+      console.error("Comment error:", error.response?.data || error.message);
+      toast.error(error.response?.data?.message || "Failed to add comment.");
+    }
+  };
+
+  // ⭐️ NEW HANDLER: Toggle comments collapse
+  const handleToggleComments = (postId) => {
+    setExpandedPostId(prevId => (prevId === postId ? null : postId));
   };
 
   // Helper function to check if post is liked by user
@@ -148,10 +189,8 @@ const Home = () => {
     return post.likes.some((like) => {
       if (!like || !like.user) return false;
       
-      // Handle both populated and unpopulated user references
       const likeUserId = typeof like.user === 'object' ? like.user._id : like.user;
       
-      // Convert both to strings for reliable comparison
       return String(likeUserId) === String(userId);
     });
   };
@@ -196,6 +235,7 @@ const Home = () => {
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}>
+      {/* --- AppBar (Navigation) --- */}
       <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
@@ -258,6 +298,7 @@ const Home = () => {
         </Toolbar>
       </AppBar>
 
+      {/* --- Specialization Tabs --- */}
       <Box sx={{ 
         backgroundColor: cardBgColor, 
         borderBottom: `1px solid ${darkMode ? '#333' : '#e0e0e0'}`,
@@ -303,6 +344,7 @@ const Home = () => {
         </Container>
       </Box>
 
+      {/* --- Main Content and Post List --- */}
       <Container sx={{ mt: 3, pb: 4 }}>
         <Grid container justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: textColor }}>
@@ -349,6 +391,8 @@ const Home = () => {
               const mediaUrl = post.media?.url || post.image || '';
               const mediaType = post.media?.type || (post.image ? 'image' : 'none');
               const hasMedia = mediaUrl && mediaType !== 'none';
+              // ⭐️ NEW: Check if comments are expanded
+              const isExpanded = expandedPostId === post._id; 
 
               return (
                 <Card key={post._id} sx={{ mb: 2, backgroundColor: cardBgColor }}>
@@ -415,6 +459,7 @@ const Home = () => {
                     </Typography>
                   </CardContent>
 
+                  {/* Media Section (Image/Video) */}
                   {hasMedia && (
                     <Box sx={{ position: 'relative' }}>
                       {mediaType === 'video' ? (
@@ -462,16 +507,84 @@ const Home = () => {
                     </Box>
                   )}
                   
+                  {/* Interaction Buttons and Comments */}
                   <CardContent sx={{ pt: 1 }}> 
-                    <Button
-                      onClick={() => handleLike(post._id)}
-                      color={likedByUser ? "primary" : "default"}
-                      startIcon={<ThumbUpIcon />}
-                      disabled={!currentUser?.token}
-                      variant={likedByUser ? "contained" : "outlined"}
-                    >
-                      {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
-                    </Button>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+                      <Button
+                        onClick={() => handleLike(post._id)}
+                        color={likedByUser ? "primary" : "default"}
+                        startIcon={<ThumbUpIcon />}
+                        disabled={!currentUser?.token}
+                        variant={likedByUser ? "contained" : "outlined"}
+                      >
+                        {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
+                      </Button>
+                      
+                      {/* ⭐️ NEW COMMENT BUTTON */}
+                      <Button
+                        onClick={() => handleToggleComments(post._id)}
+                        color="secondary"
+                        startIcon={<ChatBubbleIcon />}
+                        variant={isExpanded ? "contained" : "outlined"}
+                      >
+                        {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
+                      </Button>
+                    </Box>
+
+                    {/* ⭐️ NEW COLLAPSIBLE COMMENT SECTION */}
+                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                      <Box sx={{ p: 2, borderTop: `1px solid ${secondaryTextColor}50`, backgroundColor: commentBgColor, borderRadius: 1 }}>
+                        
+                        {/* Comment Input */}
+                        {currentUser?.token && (
+                          <Box sx={{ mb: 2, display: "flex", gap: 1 }}>
+                            <TextField
+                              fullWidth
+                              variant="outlined"
+                              size="small"
+                              placeholder="Add a comment..."
+                              value={newCommentText[post._id] || ""}
+                              onChange={(e) => setNewCommentText(prev => ({ ...prev, [post._id]: e.target.value }))}
+                              // Style for dark mode compatibility
+                              sx={{ 
+                                '& input': { color: textColor }, 
+                                '& .MuiOutlinedInput-root': { 
+                                  '& fieldset': { borderColor: secondaryTextColor }, 
+                                  '&:hover fieldset': { borderColor: secondaryTextColor }, 
+                                  '&.Mui-focused fieldset': { borderColor: 'primary.main' }, 
+                                }, 
+                              }}
+                            />
+                            <Button 
+                              variant="contained" 
+                              color="primary" 
+                              onClick={() => handleAddComment(post._id)}
+                            >
+                              Post
+                            </Button>
+                          </Box>
+                        )}
+
+                        {/* Display Comments (Show up to the latest 5) */}
+                        {post.comments.length > 0 ? (
+                          // Reverse and slice to show the newest comments (last 5) first
+                          post.comments.slice().reverse().slice(0, 5).map((comment, i) => ( 
+                            <Box key={comment._id || i} sx={{ mb: 1, p: 1, backgroundColor: cardBgColor, borderRadius: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: "bold", color: textColor }}>
+                                {comment.user?.name || "Anonymous"}:
+                              </Typography>
+                              <Typography variant="body2" sx={{ ml: 1, color: secondaryTextColor }}>
+                                {comment.text}
+                              </Typography>
+                            </Box>
+                          ))
+                        ) : (
+                          <Typography variant="body2" sx={{ color: secondaryTextColor, textAlign: 'center' }}>
+                            No comments yet. Be the first!
+                          </Typography>
+                        )}
+                      </Box>
+                    </Collapse>
                   </CardContent>
                 </Card>
               );
@@ -480,7 +593,7 @@ const Home = () => {
         </Grid>
       </Container>
 
-      {/* Video Dialog */}
+      {/* Video Dialog (Unchanged) */}
       <Dialog
         open={videoDialogOpen}
         onClose={handleCloseVideo}
