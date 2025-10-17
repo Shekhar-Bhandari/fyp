@@ -14,8 +14,8 @@ import {
   TextField,
   MenuItem,
   Collapse,
-  // ⭐️ NEW IMPORTS
-  Avatar, // Used for the comment section, good to have it available
+  Avatar, 
+  Chip, // Added Chip for displaying specialization consistently
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -28,12 +28,44 @@ import PostServices from "../Services/PostServices";
 import toast from "react-hot-toast";
 import DarkModeToggle, { useDarkMode } from "../components/DarkModeToggle";
 
+// ⭐️ COPIED FROM HOME COMPONENT - These are the values used for filtering and saving to posts.
+const SPECIALIZATIONS = [
+  { value: 'all', label: 'All Projects', icon: '🌟' },
+  { value: 'web-dev', label: 'Web Dev', icon: '🌐' },
+  { value: 'mobile-dev', label: 'Mobile Dev', icon: '📱' },
+  { value: 'ai-ml', label: 'AI/ML', icon: '🤖' },
+  { value: 'data-science', label: 'Data Science', icon: '📊' },
+  { value: 'cloud-computing', label: 'Cloud', icon: '☁️' },
+  { value: 'devops', label: 'DevOps', icon: '⚙️' },
+  { value: 'cybersecurity', label: 'Security', icon: '🔒' },
+  { value: 'blockchain', label: 'Blockchain', icon: '⛓️' },
+  { value: 'game-dev', label: 'Game Dev', icon: '🎮' },
+  { value: 'iot', label: 'IoT', icon: '🔌' },
+  { value: 'ui-ux', label: 'UI/UX', icon: '🎨' },
+  { value: 'other', label: 'Other', icon: '💡' },
+];
+
+// Utility function to get the specialization label (copied from Home)
+const getSpecLabel = (specValue) => {
+    const spec = SPECIALIZATIONS.find(s => s.value === specValue);
+    // Returns "🌐 Web Dev" or "web-dev" if not found
+    return spec ? `${spec.icon} ${spec.label}` : specValue; 
+};
+
+// Utility function to get just the label part (e.g., "Web Dev")
+const getSpecName = (specValue) => {
+    const spec = SPECIALIZATIONS.find(s => s.value === specValue);
+    return spec ? spec.label : specValue;
+};
+
+
 const Leaderboard = () => {
   const [posts, setPosts] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState("leaderboard");
-  const [specializationFilter, setSpecializationFilter] = useState("");
+  // Default filter is 'all'
+  const [specializationFilter, setSpecializationFilter] = useState("all"); 
   const [expandedPostId, setExpandedPostId] = useState(null);
   const [newCommentText, setNewCommentText] = useState({}); 
 
@@ -54,8 +86,8 @@ const Leaderboard = () => {
 
   useEffect(() => {
     updateUser();
-    fetchTopPosts();
-
+    // Pass blank string for 'all' on initial load
+    fetchTopPosts(specializationFilter === 'all' ? '' : specializationFilter);
     window.addEventListener("storage", updateUser);
     return () => window.removeEventListener("storage", updateUser);
   }, []);
@@ -63,9 +95,10 @@ const Leaderboard = () => {
   const fetchTopPosts = async (specialization = "") => {
     try {
       setLoading(true);
+      // Assuming PostServices.getAllPosts accepts the short code (e.g., 'web-dev') or an empty string for all.
       const res = await PostServices.getAllPosts(specialization);
 
-      // Leaderboard sorting: Sort by raw likes.length, as is traditional for a leaderboard
+      // Leaderboard sorting: Sort by raw likes.length
       const topPosts = res.data
         .sort((a, b) => b.likes.length - a.likes.length)
         .slice(0, 10);
@@ -129,16 +162,13 @@ const Leaderboard = () => {
     }
 
     try {
-      // API call to add comment
       const res = await PostServices.addComment(postId, text);
-      const updatedPost = res.data; // Backend should return the fully updated/populated post
+      const updatedPost = res.data; 
 
-      // Update the local state with the new post data
       setPosts((prevPosts) => {
         const updated = prevPosts.map((post) =>
           post._id === updatedPost._id ? updatedPost : post
         );
-        // Re-sort the leaderboard to reflect the new comment's potential influence
         return updated.sort((a, b) => b.likes.length - a.likes.length); 
       });
 
@@ -162,7 +192,7 @@ const Leaderboard = () => {
     else if (navItem === "profile") navigate("/profile");
   };
 
-  // ⭐️ NEW HANDLER: Profile View
+  // Profile View
   const handleViewProfile = (userId) => {
     if (userId) {
       if (userId === currentUser?._id) {
@@ -178,18 +208,21 @@ const Leaderboard = () => {
   const handleSpecializationChange = (event) => {
     const value = event.target.value;
     setSpecializationFilter(value);
-    fetchTopPosts(value);
+    
+    // Pass the specialization short code or an empty string for the API call
+    const apiFilter = value === 'all' ? '' : value;
+    fetchTopPosts(apiFilter);
   };
 
   return (
     <Box
       sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}
     >
-      {/* Navigation Bar (omitted for brevity, assume it's correct) */}
+      {/* Navigation Bar */}
       <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
-            MyApp
+            Connectiva
           </Typography>
           <DarkModeToggle />
           <Box sx={{ display: "flex", gap: 1, mr: 2, ml: 2 }}>
@@ -212,7 +245,12 @@ const Leaderboard = () => {
       <Container sx={{ mt: 3 }}>
         <Box sx={{ mb: 3, textAlign: "center" }}>
           <Typography variant="h4" sx={{ fontWeight: "bold", color: textColor }}>
-            🏆 Leaderboard - Top 10 Posts
+            🏆 Top 10 Leaderboard
+          </Typography>
+          <Typography variant="subtitle1" sx={{ color: secondaryTextColor, mt: 0.5 }}>
+            {specializationFilter === 'all' 
+                ? 'Showing top 10 most liked posts across all specializations.'
+                : `Showing top 10 most liked posts in ${getSpecName(specializationFilter)}`}
           </Typography>
         </Box>
 
@@ -226,164 +264,215 @@ const Leaderboard = () => {
             sx={{ width: 300 }}
             size="small"
           >
-            <MenuItem value="">All</MenuItem>
-            <MenuItem value="Machine Learning">Machine Learning</MenuItem>
-            <MenuItem value="Web Development">Web Development</MenuItem>
-            <MenuItem value="Data Science">Data Science</MenuItem>
-            <MenuItem value="AI">AI</MenuItem>
+            {SPECIALIZATIONS.map((spec) => (
+                <MenuItem key={spec.value} value={spec.value}>
+                    {spec.icon} {spec.label}
+                </MenuItem>
+            ))}
           </TextField>
         </Box>
 
-        <Grid container direction="column">
-          {loading ? (
-            <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
-              Loading leaderboard...
-            </Typography>
-          ) : posts.length === 0 ? (
-            <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
-              No posts available yet.
-            </Typography>
-          ) : (
-            posts.map((post, index) => {
-              const likedByUser = post.likes.some(
-                (like) => (like.user?._id || like.user) === currentUser?._id
-              );
-              const isExpanded = expandedPostId === post._id; 
-              
-              // ⭐️ NEW: Get post owner details
-              const postUser = post.user;
-              const postUserId = postUser?._id;
-              const postUserName = postUser?.name || "Unknown";
+        {/* Centering Box for fixed-width/square posts */}
+        <Box 
+          sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            width: '100%',
+          }}
+        >
+          {/* Use Grid container to hold the posts, but limit its width */}
+          <Grid 
+            container 
+            direction="column" 
+            sx={{ 
+              maxWidth: { xs: '100%', sm: 450, md: 500, lg: 550 }, // Fixed max width for 'square' appearance
+              width: '100%' 
+            }}
+          >
+            {loading ? (
+              <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
+                Loading leaderboard...
+              </Typography>
+            ) : posts.length === 0 ? (
+              <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
+                No highly-ranked posts available yet in this category.
+              </Typography>
+            ) : (
+              posts.map((post, index) => {
+                const likedByUser = post.likes.some(
+                  (like) => (like.user?._id || like.user) === currentUser?._id
+                );
+                const isExpanded = expandedPostId === post._id; 
+                
+                const postUser = post.user;
+                const postUserId = postUser?._id;
+                const postUserName = postUser?.name || "Unknown";
 
-              return (
-                <Card key={post._id} sx={{ mb: 2, position: "relative", backgroundColor: cardBgColor, color: textColor }}>
-                  
-                  {/* Rank Badge (omitted for brevity, assume it's correct) */}
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      top: 10,
-                      right: 10,
-                      backgroundColor: index === 0 ? "#FFD700" : index === 1 ? "#C0C0C0" : index === 2 ? "#CD7F32" : "#f0f0f0",
-                      borderRadius: "50%",
-                      width: 50,
-                      height: 50,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontWeight: "bold",
-                      fontSize: "1.2rem",
-                      zIndex: 10,
-                    }}
-                  >
-                    #{index + 1}
-                  </Box>
-                  
-                  {post.image && <CardMedia component="img" height="200" image={post.image} alt={post.title} />}
-                  <CardContent>
-                    <Typography variant="h6" sx={{ fontWeight: "bold", color: textColor }}>{post.title}</Typography>
-                    <Typography variant="body1" sx={{ my: 1, color: textColor }}>{post.description}</Typography>
+                const mediaUrl = post.media?.url || post.image || '';
+                const hasMedia = mediaUrl; 
+
+                return (
+                  <Card key={post._id} sx={{ mb: 2, position: "relative", backgroundColor: cardBgColor, color: textColor }}>
                     
-                    {/* ⭐️ UPDATED: Make the owner's name clickable */}
-                    <Box 
-                        onClick={() => handleViewProfile(postUserId)}
-                        sx={{ cursor: postUser ? 'pointer' : 'default', mb: 1 }}
+                    {/* Rank Badge */}
+                    <Box
+                      sx={{
+                        position: "absolute",
+                        top: 10,
+                        right: 10,
+                        backgroundColor: index === 0 ? "#FFD700" : index === 1 ? "#C0C0C0" : index === 2 ? "#CD7F32" : "#f0f0f0",
+                        color: index < 3 ? '#000' : '#333',
+                        borderRadius: "50%",
+                        width: 50,
+                        height: 50,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontWeight: "bold",
+                        fontSize: "1.2rem",
+                        zIndex: 10,
+                      }}
                     >
-                        <Typography 
-                            variant="subtitle2" 
-                            sx={{ 
-                                color: secondaryTextColor,
-                                // Add hover effect to indicate clickability
-                                '&:hover': postUser && { textDecoration: 'underline', color: 'primary.main' }
-                            }}
-                        >
-                            By: {postUserName}
-                        </Typography>
+                      #{index + 1}
                     </Box>
+                    
+                    {/* CardMedia with objectFit: 'cover' */}
+                    {hasMedia && (
+                      <CardMedia 
+                        component="img" 
+                        height="300" 
+                        image={mediaUrl} 
+                        alt={post.title} 
+                        sx={{
+                          objectFit: 'cover', 
+                          width: '100%',
+                        }}
+                      />
+                    )}
 
-                    <Typography variant="caption" sx={{ color: secondaryTextColor }}>Specialization: {post.specialization}</Typography>
-
-                    {/* Like and Comment Buttons */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>
-                      <Button
-                        onClick={() => handleLike(post._id)}
-                        color={likedByUser ? "primary" : "default"}
-                        startIcon={<ThumbUpIcon />}
-                        disabled={!currentUser?.token}
-                        variant={likedByUser ? "contained" : "outlined"}
-                      >
-                        {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
-                      </Button>
-
-                      <Button
-                        onClick={() => handleToggleComments(post._id)}
-                        color="secondary"
-                        startIcon={<ChatBubbleIcon />}
-                        variant={isExpanded ? "contained" : "outlined"}
-                      >
-                        {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
-                      </Button>
-                      
-                      <Typography
-                        variant="body2"
-                        sx={{ ml: 2, p: 1, backgroundColor: commentBgColor, borderRadius: 1, fontWeight: "bold", color: textColor, }}
-                      >
-                        Rank: #{index + 1}
-                      </Typography>
-                    </Box>
-                  </CardContent>
-
-                  {/* COLLAPSIBLE COMMENT SECTION */}
-                  <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                    <Box sx={{ p: 2, borderTop: `1px solid ${secondaryTextColor}50`, backgroundColor: commentBgColor }}>
-                      
-                      {/* Comment Input */}
-                      {currentUser?.token && (
-                        <Box sx={{ mb: 2, display: "flex", gap: 1 }}>
-                          <TextField
-                            fullWidth
-                            variant="outlined"
-                            size="small"
-                            placeholder="Add a comment..."
-                            value={newCommentText[post._id] || ""}
-                            onChange={(e) => setNewCommentText(prev => ({ ...prev, [post._id]: e.target.value }))}
-                            sx={{ '& input': { color: textColor }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: secondaryTextColor }, '&:hover fieldset': { borderColor: secondaryTextColor }, '&.Mui-focused fieldset': { borderColor: 'primary.main' }, }, }}
-                          />
-                          <Button 
-                            variant="contained" 
-                            color="primary" 
-                            onClick={() => handleAddComment(post._id)}
-                          >
-                            Post
-                          </Button>
+                    <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="h6" sx={{ fontWeight: "bold", color: textColor }}>{post.title}</Typography>
+                            {/* ⭐️ FIX APPLIED: Use getSpecName for display, which converts the short code (e.g., 'web-dev') */}
+                            {post.specialization && (
+                                <Chip 
+                                    label={getSpecName(post.specialization)}
+                                    size="small"
+                                    color="primary"
+                                    variant="outlined"
+                                />
+                            )}
                         </Box>
-                      )}
 
-                      {/* Display Comments */}
-                      {post.comments.length > 0 ? (
-                        // Display the last 5 comments (newest first)
-                        post.comments.slice().reverse().slice(0, 5).map((comment, i) => ( 
-                          <Box key={comment._id || i} sx={{ mb: 1, p: 1, backgroundColor: cardBgColor, borderRadius: 1 }}>
-                            <Typography variant="body2" sx={{ fontWeight: "bold", color: textColor }}>
-                              {comment.user?.name || "Anonymous"}:
-                            </Typography>
-                            <Typography variant="body2" sx={{ ml: 1, color: secondaryTextColor }}>
-                              {comment.text}
-                            </Typography>
-                          </Box>
-                        ))
-                      ) : (
-                        <Typography variant="body2" sx={{ color: secondaryTextColor, textAlign: 'center' }}>
-                          No comments yet. Be the first!
+                      <Typography variant="body1" sx={{ my: 1, color: textColor }}>{post.description}</Typography>
+                      
+                      {/* Post Owner */}
+                      <Box 
+                          onClick={() => handleViewProfile(postUserId)}
+                          sx={{ cursor: postUser ? 'pointer' : 'default', mb: 1 }}
+                      >
+                          <Typography 
+                              variant="subtitle2" 
+                              sx={{ 
+                                  color: secondaryTextColor,
+                                  '&:hover': postUser && { textDecoration: 'underline', color: 'primary.main' }
+                              }}
+                          >
+                              By: {postUserName}
+                          </Typography>
+                      </Box>
+
+                      {/* Like and Comment Buttons */}
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 2 }}>
+                        <Button
+                          onClick={() => handleLike(post._id)}
+                          color={likedByUser ? "primary" : "default"}
+                          startIcon={<ThumbUpIcon />}
+                          disabled={!currentUser?.token}
+                          variant={likedByUser ? "contained" : "outlined"}
+                          size="small"
+                        >
+                          {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
+                        </Button>
+
+                        <Button
+                          onClick={() => handleToggleComments(post._id)}
+                          color="secondary"
+                          startIcon={<ChatBubbleIcon />}
+                          variant={isExpanded ? "contained" : "outlined"}
+                          size="small"
+                        >
+                          {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
+                        </Button>
+                        
+                        <Typography
+                          variant="body2"
+                          sx={{ ml: 2, p: 1, backgroundColor: commentBgColor, borderRadius: 1, fontWeight: "bold", color: textColor, }}
+                        >
+                          Rank: #{index + 1}
                         </Typography>
-                      )}
-                    </Box>
-                  </Collapse>
-                </Card>
-              );
-            })
-          )}
-        </Grid>
+                      </Box>
+                    </CardContent>
+
+                    {/* COLLAPSIBLE COMMENT SECTION */}
+                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                      <Box sx={{ p: 2, borderTop: `1px solid ${secondaryTextColor}50`, backgroundColor: commentBgColor }}>
+                        
+                        {/* Comment Input */}
+                        {currentUser?.token && (
+                          <Box sx={{ mb: 2, display: "flex", gap: 1 }}>
+                            <TextField
+                              fullWidth
+                              variant="outlined"
+                              size="small"
+                              placeholder="Add a comment..."
+                              value={newCommentText[post._id] || ""}
+                              onChange={(e) => setNewCommentText(prev => ({ ...prev, [post._id]: e.target.value }))}
+                              sx={{ '& input': { color: textColor }, '& .MuiOutlinedInput-root': { '& fieldset': { borderColor: secondaryTextColor }, '&:hover fieldset': { borderColor: secondaryTextColor }, '&.Mui-focused fieldset': { borderColor: 'primary.main' }, }, }}
+                              inputProps={{ style: { color: textColor } }} 
+                              InputLabelProps={{ style: { color: secondaryTextColor } }} 
+                            />
+                            <Button 
+                              variant="contained" 
+                              color="primary" 
+                              onClick={() => handleAddComment(post._id)}
+                            >
+                              Post
+                            </Button>
+                          </Box>
+                        )}
+
+                        {/* Display Comments */}
+                        {post.comments.length > 0 ? (
+                          // Display the last 5 comments (newest first)
+                          post.comments.slice().reverse().slice(0, 5).map((comment, i) => ( 
+                            <Box key={comment._id || i} sx={{ mb: 1, p: 1, display: 'flex', alignItems: 'center', backgroundColor: cardBgColor, borderRadius: 1 }}>
+                              <Avatar sx={{ width: 24, height: 24, mr: 1, bgcolor: 'primary.main', fontSize: '0.8rem' }}>
+                                  {comment.user?.name ? comment.user.name[0] : 'A'}
+                              </Avatar>
+                              <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: "bold", color: textColor, display: 'inline' }}>
+                                      {comment.user?.name || "Anonymous"}:
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ ml: 1, color: secondaryTextColor, display: 'inline' }}>
+                                      {comment.text}
+                                  </Typography>
+                              </Box>
+                            </Box>
+                          ))
+                        ) : (
+                          <Typography variant="body2" sx={{ color: secondaryTextColor, textAlign: 'center' }}>
+                            No comments yet. Be the first!
+                          </Typography>
+                        )}
+                      </Box>
+                    </Collapse>
+                  </Card>
+                );
+              })
+            )}
+          </Grid>
+        </Box>
       </Container>
     </Box>
   );
