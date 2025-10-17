@@ -15,12 +15,16 @@ import {
   Chip,
   Tabs,
   Tab,
+  Dialog,
+  DialogContent,
 } from "@mui/material";
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
 import HomeIcon from "@mui/icons-material/Home";
 import LeaderboardIcon from "@mui/icons-material/Leaderboard";
 import PersonIcon from "@mui/icons-material/Person";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import CloseIcon from "@mui/icons-material/Close";
 import { useNavigate } from "react-router-dom";
 import PostServices from "../Services/PostServices";
 import toast from "react-hot-toast";
@@ -49,16 +53,16 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [activeNav, setActiveNav] = useState("home");
   const [selectedSpec, setSelectedSpec] = useState("all");
+  const [videoDialogOpen, setVideoDialogOpen] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState(null);
   const darkMode = useDarkMode();
   const navigate = useNavigate();
 
-  // Dark mode colors
   const bgColor = darkMode ? "#1a1a1a" : "#f5f5f5";
   const cardBgColor = darkMode ? "#2d2d2d" : "#ffffff";
   const textColor = darkMode ? "#ffffff" : "#000000";
   const secondaryTextColor = darkMode ? "#b0b0b0" : "#666666";
 
-  // Update currentUser on mount and whenever localStorage changes
   const updateUser = () => {
     const user = JSON.parse(localStorage.getItem("todoapp"));
     setCurrentUser(user);
@@ -67,12 +71,10 @@ const Home = () => {
   useEffect(() => {
     updateUser();
     fetchPosts();
-
     window.addEventListener("storage", updateUser);
     return () => window.removeEventListener("storage", updateUser);
   }, []);
 
-  // Filter posts when selectedSpec or posts change
   useEffect(() => {
     if (selectedSpec === "all") {
       setFilteredPosts(posts);
@@ -81,7 +83,6 @@ const Home = () => {
     }
   }, [selectedSpec, posts]);
 
-  // Fetch posts
   const fetchPosts = async () => {
     try {
       setLoading(true);
@@ -95,7 +96,6 @@ const Home = () => {
     }
   };
 
-  // Logout
   const handleLogout = () => {
     localStorage.removeItem("todoapp");
     setCurrentUser(null);
@@ -104,7 +104,6 @@ const Home = () => {
     navigate("/auth");
   };
 
-  // Like/unlike
   const handleLike = async (postId) => {
     if (!currentUser?.token) {
       toast.error("You must be logged in to like a post");
@@ -135,7 +134,6 @@ const Home = () => {
     }
   };
 
-  // Navigation handlers
   const handleNavClick = (navItem) => {
     setActiveNav(navItem);
     if (navItem === "home") {
@@ -159,6 +157,16 @@ const Home = () => {
     }
   };
 
+  const handleVideoClick = (videoUrl) => {
+    setSelectedVideo(videoUrl);
+    setVideoDialogOpen(true);
+  };
+
+  const handleCloseVideo = () => {
+    setVideoDialogOpen(false);
+    setSelectedVideo(null);
+  };
+
   const getSpecLabel = (specValue) => {
     const spec = SPECIALIZATIONS.find(s => s.value === specValue);
     return spec ? `${spec.icon} ${spec.label}` : specValue;
@@ -166,7 +174,6 @@ const Home = () => {
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}>
-      {/* Navigation Bar */}
       <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
@@ -175,7 +182,6 @@ const Home = () => {
 
           <DarkModeToggle />
 
-          {/* Navigation Buttons */}
           <Box sx={{ display: "flex", gap: 1, mr: 2, ml: 2 }}>
             <Button
               startIcon={<HomeIcon />}
@@ -203,7 +209,6 @@ const Home = () => {
             </Button>
           </Box>
 
-          {/* User Info & Actions */}
           {currentUser ? (
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <Typography variant="body2" sx={{ color: textColor }}>
@@ -231,7 +236,6 @@ const Home = () => {
         </Toolbar>
       </AppBar>
 
-      {/* Specialization Filter Tabs */}
       <Box sx={{ 
         backgroundColor: cardBgColor, 
         borderBottom: `1px solid ${darkMode ? '#333' : '#e0e0e0'}`,
@@ -277,9 +281,7 @@ const Home = () => {
         </Container>
       </Box>
 
-      {/* Main Content */}
       <Container sx={{ mt: 3, pb: 4 }}>
-        {/* Header Actions */}
         <Grid container justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 'bold', color: textColor }}>
             {selectedSpec === 'all' ? '🌟 All Projects' : getSpecLabel(selectedSpec)}
@@ -293,7 +295,6 @@ const Home = () => {
           </Button>
         </Grid>
 
-        {/* Posts Section */}
         <Grid container direction="column">
           {loading ? (
             <Typography variant="body1" sx={{ mt: 4, textAlign: "center", color: textColor }}>
@@ -324,11 +325,15 @@ const Home = () => {
               const postUserId = postUser?._id;
               const postUserName = postUser?.name || "Unknown";
 
+              // Determine media type and URL (support both old and new structure)
+              const mediaUrl = post.media?.url || post.image || '';
+              const mediaType = post.media?.type || (post.image ? 'image' : 'none');
+              const hasMedia = mediaUrl && mediaType !== 'none';
+
               return (
                 <Card key={post._id} sx={{ mb: 2, backgroundColor: cardBgColor }}>
                   <CardContent sx={{ pb: '16px !important' }}>
                     
-                    {/* User Header */}
                     <Box 
                       sx={{ 
                         display: 'flex', 
@@ -369,7 +374,6 @@ const Home = () => {
                         </Box>
                       </Box>
 
-                      {/* Specialization Badge */}
                       {post.specialization && (
                         <Chip 
                           label={getSpecLabel(post.specialization)}
@@ -380,7 +384,6 @@ const Home = () => {
                       )}
                     </Box>
 
-                    {/* Title and Description */}
                     <Typography 
                       variant="h6" 
                       sx={{ fontWeight: "bold", color: textColor, mt: 1, mb: 0.5 }}
@@ -392,18 +395,54 @@ const Home = () => {
                     </Typography>
                   </CardContent>
 
-                  {/* Image */}
-                  {post.image && (
-                    <CardMedia 
-                      component="img" 
-                      height="200" 
-                      image={post.image} 
-                      alt={post.title}
-                      sx={{ borderTop: `1px solid ${darkMode ? '#333' : '#eee'}` }}
-                    />
+                  {/* Media Display - Image or Video Thumbnail */}
+                  {hasMedia && (
+                    <Box sx={{ position: 'relative' }}>
+                      {mediaType === 'video' ? (
+                        <>
+                          <CardMedia 
+                            component="video"
+                            height="200"
+                            src={mediaUrl}
+                            sx={{ 
+                              borderTop: `1px solid ${darkMode ? '#333' : '#eee'}`,
+                              objectFit: 'cover',
+                              cursor: 'pointer'
+                            }}
+                            onClick={() => handleVideoClick(mediaUrl)}
+                          />
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%)',
+                              cursor: 'pointer',
+                              pointerEvents: 'none'
+                            }}
+                          >
+                            <PlayCircleOutlineIcon 
+                              sx={{ 
+                                fontSize: 80,
+                                color: 'white',
+                                opacity: 0.9,
+                                filter: 'drop-shadow(0 0 8px rgba(0,0,0,0.5))'
+                              }} 
+                            />
+                          </Box>
+                        </>
+                      ) : (
+                        <CardMedia 
+                          component="img" 
+                          height="200" 
+                          image={mediaUrl} 
+                          alt={post.title}
+                          sx={{ borderTop: `1px solid ${darkMode ? '#333' : '#eee'}` }}
+                        />
+                      )}
+                    </Box>
                   )}
                   
-                  {/* Actions */}
                   <CardContent sx={{ pt: 1 }}> 
                     <Button
                       onClick={() => handleLike(post._id)}
@@ -421,6 +460,51 @@ const Home = () => {
           )}
         </Grid>
       </Container>
+
+      {/* Video Dialog */}
+      <Dialog
+        open={videoDialogOpen}
+        onClose={handleCloseVideo}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: darkMode ? '#1a1a1a' : '#ffffff',
+          }
+        }}
+      >
+        <IconButton
+          onClick={handleCloseVideo}
+          sx={{
+            position: 'absolute',
+            right: 8,
+            top: 8,
+            color: 'white',
+            bgcolor: 'rgba(0,0,0,0.5)',
+            zIndex: 1,
+            '&:hover': {
+              bgcolor: 'rgba(0,0,0,0.7)'
+            }
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+        <DialogContent sx={{ p: 0, bgcolor: 'black' }}>
+          {selectedVideo && (
+            <video
+              src={selectedVideo}
+              controls
+              autoPlay
+              style={{
+                width: '100%',
+                height: 'auto',
+                maxHeight: '80vh',
+                display: 'block'
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };

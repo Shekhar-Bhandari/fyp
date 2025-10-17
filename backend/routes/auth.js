@@ -1,12 +1,11 @@
-// backend/routes/auth.js
+// backend/routes/auth.js (FINAL FIXED VERSION)
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const User = require('../models/User'); // Use the User model
 const { protect } = require('../middleware/auth');
 
-// REGISTER
+// REGISTER (FIXED: Removes manual hashing)
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -20,12 +19,11 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
+    // ⭐️ FIX: Pass the plain password. The User model's pre('save') hook handles hashing.
     const user = await User.create({
       name,
       email,
-      password: hashedPassword,
+      password: password, 
     });
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -45,7 +43,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// LOGIN
+// LOGIN (FIXED: Uses matchPassword instance method)
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -59,7 +57,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    // ⭐️ CRITICAL FIX: Use the model's instance method for comparison ⭐️
+    const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
@@ -74,12 +73,18 @@ router.post('/login', async (req, res) => {
       email: user.email,
       token,
       profileSetupComplete: user.profileSetupComplete || false,
+      // Ensure all profile fields are returned for frontend state
+      headline: user.headline,
+      about: user.about,
+      experiences: user.experiences,
+      skills: user.skills,
+      profileImage: user.profileImage,
+      phone: user.phone,
       bio: user.bio,
       university: user.university,
       major: user.major,
       year: user.year,
       interests: user.interests,
-      skills: user.skills,
       github: user.github,
       linkedin: user.linkedin,
     });
@@ -92,7 +97,11 @@ router.post('/login', async (req, res) => {
 // GET CURRENT USER (Protected)
 router.get('/me', protect, async (req, res) => {
   try {
+    // req.user is set by middleware/auth.js
     const user = await User.findById(req.user._id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
     res.json(user);
   } catch (error) {
     console.error('Get user error:', error);
@@ -104,18 +113,8 @@ router.get('/me', protect, async (req, res) => {
 router.put('/profile', protect, async (req, res) => {
   try {
     const {
-      name,
-      email,
-      phone,
-      bio,
-      university,
-      major,
-      year,
-      interests,
-      skills,
-      github,
-      linkedin,
-      profileSetupComplete
+      name, email, phone, bio, university, major, year, interests,
+      skills, github, linkedin, profileSetupComplete
     } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -141,19 +140,12 @@ router.put('/profile', protect, async (req, res) => {
     const updatedUser = await user.save();
 
     res.json({
-      _id: updatedUser._id,
-      name: updatedUser.name,
-      email: updatedUser.email,
-      phone: updatedUser.phone,
-      bio: updatedUser.bio,
-      university: updatedUser.university,
-      major: updatedUser.major,
-      year: updatedUser.year,
-      interests: updatedUser.interests,
-      skills: updatedUser.skills,
-      github: updatedUser.github,
-      linkedin: updatedUser.linkedin,
-      profileSetupComplete: updatedUser.profileSetupComplete,
+      _id: updatedUser._id, name: updatedUser.name, email: updatedUser.email, 
+      phone: updatedUser.phone, bio: updatedUser.bio, 
+      university: updatedUser.university, major: updatedUser.major,
+      year: updatedUser.year, interests: updatedUser.interests,
+      skills: updatedUser.skills, github: updatedUser.github, 
+      linkedin: updatedUser.linkedin, profileSetupComplete: updatedUser.profileSetupComplete,
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -161,7 +153,7 @@ router.put('/profile', protect, async (req, res) => {
   }
 });
 
-// ⭐ GET PUBLIC PROFILE BY USER ID (Anyone can view)
+// GET PUBLIC PROFILE BY USER ID (Anyone can view)
 router.get('/profile/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -175,19 +167,10 @@ router.get('/profile/:userId', async (req, res) => {
 
     // Return public profile information
     res.json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      bio: user.bio,
-      university: user.university,
-      major: user.major,
-      year: user.year,
-      interests: user.interests,
-      skills: user.skills,
-      github: user.github,
-      linkedin: user.linkedin,
-      profileImage: user.profileImage,
-      createdAt: user.createdAt,
+      _id: user._id, name: user.name, email: user.email, bio: user.bio,
+      university: user.university, major: user.major, year: user.year,
+      interests: user.interests, skills: user.skills, github: user.github,
+      linkedin: user.linkedin, profileImage: user.profileImage, createdAt: user.createdAt,
     });
   } catch (error) {
     console.error('Get public profile error:', error);

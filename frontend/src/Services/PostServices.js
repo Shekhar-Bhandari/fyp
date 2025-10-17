@@ -1,3 +1,4 @@
+// src/Services/PostServices.js
 import api from "./api";
 
 const PostServices = {
@@ -25,17 +26,31 @@ const PostServices = {
     });
   },
 
+  // ⭐️ UPDATED: Now supports both FormData (for files) and regular JSON
   createPost: async (data) => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+    const isFormData = data instanceof FormData;
+    
     return await api.post("/posts", data, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // Let browser set Content-Type for FormData (includes boundary)
+        ...(isFormData && { 'Content-Type': 'multipart/form-data' })
+      },
     });
   },
 
+  // ⭐️ UPDATED: Now supports both FormData (for files) and regular JSON
   updatePost: async (id, data) => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+    const isFormData = data instanceof FormData;
+    
     return await api.put(`/posts/${id}`, data, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+        // Let browser set Content-Type for FormData (includes boundary)
+        ...(isFormData && { 'Content-Type': 'multipart/form-data' })
+      },
     });
   },
 
@@ -46,7 +61,6 @@ const PostServices = {
     });
   },
 
-  // ⭐️ NEW FUNCTION FOR COMMENTS ⭐️
   addComment: async (postId, text) => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
     if (!token) throw new Error("Authentication token is missing.");
@@ -56,6 +70,5 @@ const PostServices = {
     });
   },
 };
-
 
 export default PostServices;

@@ -1,4 +1,4 @@
-// src/pages/Auth.js (Corrected)
+// src/pages/Auth.js
 import React, { useState } from "react";
 import { Avatar, Button, Paper, Grid, Typography, Container } from "@mui/material";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -21,15 +21,15 @@ const Auth = () => {
 
     try {
       if (isSignup) {
-        // ✅ FIX: Changed AuthServices.registerUser to AuthServices.register
+        // ✅ FIX: Use 'register'
         await AuthServices.register(formData); 
         toast.success("Registered successfully! Please login.");
         setIsSignup(false);
       } else {
-        // ✅ FIX: Changed AuthServices.loginUser to AuthServices.login
+        // ✅ FIX: Use 'login'
         const res = await AuthServices.login(formData);
 
-        // Save everything under "todoapp" key
+        // Save data received from the fixed login response
         localStorage.setItem(
           "todoapp",
           JSON.stringify({
@@ -37,14 +37,14 @@ const Auth = () => {
             name: res.data.name,
             email: res.data.email,
             token: res.data.token,
-            // Include profileSetupComplete status from the backend login response
             profileSetupComplete: res.data.profileSetupComplete, 
-            profile: res.data.profile || null, // Include profile data if sent
+            // All profile fields are saved directly on the root object
+            ...res.data
           })
         );
 
         toast.success("Login successful!");
-        navigate("/profile-setup"); // redirect to home page
+        navigate("/profile-setup");
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Something went wrong");

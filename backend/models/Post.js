@@ -17,6 +17,23 @@ const PostSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  // Updated media field to store both images and videos
+  media: {
+    url: {
+      type: String,
+      default: ''
+    },
+    type: {
+      type: String,
+      enum: ['image', 'video', 'none'],
+      default: 'none'
+    },
+    publicId: {
+      type: String,
+      default: ''
+    }
+  },
+  // Keep for backward compatibility
   image: {
     type: String,
     default: ''
@@ -25,7 +42,6 @@ const PostSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  // ⭐️ NEW: Flag to control visibility on the live feed/leaderboard
   isArchived: {
     type: Boolean,
     default: false 

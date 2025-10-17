@@ -1,43 +1,30 @@
 const express = require('express');
 const cors = require('cors');
+// ⭐️ CRITICAL FIX: Require dotenv and call config() immediately ⭐️
 const dotenv = require('dotenv');
+dotenv.config();
+// ⭐️ NOW it's safe to load other modules that read process.env ⭐️
+
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/auth');
 const postRoutes = require('./routes/posts');
-
-// ⭐️ NEW: Import the nightly archive scheduler
 const startNightlyArchiveJob = require('./scheduler'); 
 
-// Load env vars
-dotenv.config();
-
-// Connect to database
+// Connect to database (Uses process.env.MONGO_URI, which is now loaded)
 connectDB();
 
 const app = express();
 
+// ... (Rest of your middleware and routing logic remains the same) ...
+
 // CORS configuration - allow your frontend origin
 app.use(cors({
-  origin: 'http://localhost:3000', // Your React dev server
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+// ...
 }));
-
-// Handle preflight requests
-app.options('*', cors());
 
 // Manual CORS headers as fallback
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
+// ...
   next();
 });
 
@@ -65,6 +52,6 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   
-  // ⭐️ START THE CRON JOB HERE ⭐️
+  // START THE CRON JOB HERE
   startNightlyArchiveJob();
 });
