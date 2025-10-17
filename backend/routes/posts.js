@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
-const User = require('../models/User'); // Import User model for post quota checks
+const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 
 // Initialize upload and cloudinary variables
@@ -12,27 +12,21 @@ try {
   const cloudinaryModule = require('../config/cloudinary');
   upload = cloudinaryModule.upload;
   cloudinary = cloudinaryModule.cloudinary;
-  // console.log('✓ Cloudinary module loaded successfully'); // Keeping this log out of the route file
 } catch (error) {
-  // CRITICAL: Log this error if it occurs to diagnose import/config failure
   console.error('✗ CRITICAL: Failed to load Cloudinary/Multer module in posts.js:', error.message); 
 }
 
 // ---------------- CREATE POST WITH FILE UPLOAD ----------------
 router.post('/', protect, (req, res, next) => {
-  // Check if upload middleware exists
   if (upload) {
-    // Use multer's error handler to explicitly catch sync errors
     upload.single('mediaFile')(req, res, (error) => {
         if (error) {
             console.error("Multer/Cloudinary Upload Error:", error.message);
-            // Pass the error to the main Express error handling middleware
             return next(error); 
         }
-        next(); // Proceed to the async controller function
+        next();
     }); 
   } else {
-    // If upload is missing (due to failed import), we still proceed without file handling
     console.warn('Warning: Post creation proceeding without file upload middleware (upload is undefined).');
     next(); 
   }
@@ -40,14 +34,12 @@ router.post('/', protect, (req, res, next) => {
   try {
     console.log('=== POST CREATE REQUEST START ===');
     
-    // 1. Fetch full User object for quota check
     const user = await User.findById(req.user._id);
 
     if (!user) {
       return res.status(404).json({ message: 'Authenticated user not found.' });
     }
     
-    // 2. Check and enforce post limit
     if (!user.canCreatePost()) {
         await user.save();
         return res.status(403).json({ message: 'You have reached the weekly post limit (5 posts).' });
@@ -59,30 +51,26 @@ router.post('/', protect, (req, res, next) => {
       return res.status(400).json({ message: 'Title, description, and specialization are required' });
     }
 
-    // Prepare media object
     const mediaData = {
       url: '', type: 'none', publicId: ''
     };
 
-    // Handle file upload result
     if (req.file) {
       mediaData.url = req.file.path;
       mediaData.publicId = req.file.filename;
       mediaData.type = req.file.mimetype.startsWith('video/') ? 'video' : 'image';
     }
 
-    // Create the post
     const post = await Post.create({
       user: req.user._id,
       title: title.trim(),
       description: description.trim(),
       media: mediaData,
-      image: mediaData.url, // For backward compatibility
+      image: mediaData.url,
       specialization,
       isArchived: false
     });
 
-    // 3. Increment count
     await user.incrementPostCount();
 
     const populatedPost = await Post.findById(post._id).populate('user', 'name profileImage');
@@ -103,7 +91,6 @@ router.post('/', protect, (req, res, next) => {
         return res.status(400).json({ message: 'Validation failed: A required field for the post is missing or invalid.' });
     }
     
-    // Pass the original error message to the frontend, which is helpful for debugging
     res.status(500).json({ message: error.message || 'Server Error during post creation.' });
   }
 });
@@ -185,7 +172,6 @@ router.put('/:id', protect, (req, res, next) => {
       return res.status(403).json({ message: 'Not authorized to edit this post' });
     }
 
-    // Delete old media if new file uploaded or removeMedia flag is set
     if ((req.file || removeMedia === 'true') && post.media?.publicId && cloudinary) {
       try {
         await cloudinary.uploader.destroy(post.media.publicId, {
@@ -196,12 +182,10 @@ router.put('/:id', protect, (req, res, next) => {
       }
     }
 
-    // Update fields
     post.title = title || post.title;
     post.description = description || post.description;
     post.specialization = specialization || post.specialization;
 
-    // Handle new media upload
     if (req.file) {
       post.media = {
         url: req.file.path,
@@ -234,7 +218,6 @@ router.delete('/:id', protect, async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to delete this post' });
     }
 
-    // Delete media from Cloudinary if exists
     if (post.media?.publicId && cloudinary) {
       try {
         await cloudinary.uploader.destroy(post.media.publicId, {
@@ -253,32 +236,97 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
-// ---------------- LIKE / UNLIKE POST ----------------
+// ---------------- LIKE / UNLIKE POST (FIXED) ----------------
 router.put('/:id/like', protect, async (req, res) => {
   try {
+    console.log('=== LIKE/UNLIKE REQUEST START ===');
+    console.log('Post ID:', req.params.id);
+    console.log('User ID:', req.user._id);
+
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: 'Post not found' });
-
-    const userId = req.user._id.toString();
-    const hasLiked = post.likes.some(like => like.user.toString() === userId);
-
-    if (hasLiked) {
-      post.likes = post.likes.filter(like => like.user.toString() !== userId);
-    } else {
-      post.likes.push({ user: req.user._id });
+    
+    if (!post) {
+      console.log('Post not found');
+      return res.status(404).json({ message: 'Post not found' });
     }
 
-    await post.save();
+    console.log('Post found, current likes count:', post.likes.length);
 
+    // CRITICAL FIX: Safely handle user ID comparison
+    const userId = req.user._id.toString();
+    
+    // Clean up any null/undefined user references
+    const validLikes = post.likes.filter(like => {
+      if (!like || !like.user) {
+        console.warn('Found invalid like entry (null user), removing...');
+        return false;
+      }
+      return true;
+    });
+
+    // Check if user has already liked
+    const likeIndex = validLikes.findIndex(like => {
+      try {
+        const likeUserId = like.user.toString();
+        return likeUserId === userId;
+      } catch (err) {
+        console.error('Error comparing like user ID:', err);
+        return false;
+      }
+    });
+
+    const hasLiked = likeIndex !== -1;
+
+    console.log('User has liked:', hasLiked);
+
+    if (hasLiked) {
+      // Unlike: Remove the user's like
+      post.likes = validLikes.filter(like => {
+        try {
+          return like.user.toString() !== userId;
+        } catch (err) {
+          console.error('Error filtering likes:', err);
+          return true;
+        }
+      });
+      console.log('Post unliked, new count:', post.likes.length);
+    } else {
+      // Like: Add the user's like
+      post.likes = validLikes;
+      post.likes.push({ 
+        user: req.user._id,
+        likedAt: new Date()
+      });
+      console.log('Post liked, new count:', post.likes.length);
+    }
+
+    // Save the post
+    await post.save();
+    console.log('Post saved successfully');
+
+    // Re-populate the post for the client response
     const updatedPost = await Post.findById(post._id)
       .populate('user', 'name profileImage')
       .populate('likes.user', 'name email')
-      .populate('comments.user', 'name profileImage'); 
+      .populate('comments.user', 'name profileImage');
+
+    console.log('Post populated, returning to client');
+    console.log('=== LIKE/UNLIKE REQUEST END ===');
 
     res.json(updatedPost);
+    
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: error.message });
+    console.error('=== LIKE/UNLIKE ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    console.error('Post ID:', req.params.id);
+    console.error('User ID:', req.user?._id);
+    
+    res.status(500).json({ 
+      message: error.message || 'Failed to like/unlike post',
+      error: process.env.NODE_ENV === 'development' ? error.stack : 'Server Error'
+    });
   }
 });
 

@@ -3,71 +3,123 @@ import api from "./api";
 
 const PostServices = {
   getAllPosts: async (specialization = "") => {
-    const user = JSON.parse(localStorage.getItem("todoapp"));
-    const token = user?.token;
-    let url = "/posts";
-    if (specialization) url += `?specialization=${encodeURIComponent(specialization)}`;
-    return await api.get(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    try {
+      const user = JSON.parse(localStorage.getItem("todoapp"));
+      const token = user?.token;
+      let url = "/posts";
+      if (specialization) url += `?specialization=${encodeURIComponent(specialization)}`;
+      
+      return await api.get(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (error) {
+      console.error('Error in getAllPosts:', error);
+      throw error;
+    }
   },
   
   getMyPosts: async () => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    return await api.get("/posts/my-posts", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    try {
+      const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+      return await api.get("/posts/my-posts", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (error) {
+      console.error('Error in getMyPosts:', error);
+      throw error;
+    }
   },
 
   likePost: async (id) => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    return await api.put(`/posts/${id}/like`, null, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    try {
+      const user = JSON.parse(localStorage.getItem("todoapp"));
+      const token = user?.token;
+      
+      if (!token) {
+        throw new Error('Authentication token is missing');
+      }
+
+      console.log('=== PostServices.likePost ===');
+      console.log('Post ID:', id);
+      console.log('User ID:', user._id);
+      console.log('Token exists:', !!token);
+
+      // 💡 CRITICAL FIX: Replaced 'null' with an empty object {} to satisfy the JSON parser.
+      const response = await api.put(`/posts/${id}/like`, {}, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+      });
+
+      console.log('Like response received:', response.data);
+      return response;
+    } catch (error) {
+      console.error('=== Error in PostServices.likePost ===');
+      console.error('Error:', error);
+      console.error('Response:', error.response?.data);
+      throw error;
+    }
   },
 
-  // ⭐️ UPDATED: Now supports both FormData (for files) and regular JSON
   createPost: async (data) => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    const isFormData = data instanceof FormData;
-    
-    return await api.post("/posts", data, {
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-        // Let browser set Content-Type for FormData (includes boundary)
-        ...(isFormData && { 'Content-Type': 'multipart/form-data' })
-      },
-    });
+    try {
+      const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+      const isFormData = data instanceof FormData;
+      
+      return await api.post("/posts", data, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(isFormData && { 'Content-Type': 'multipart/form-data' })
+        },
+      });
+    } catch (error) {
+      console.error('Error in createPost:', error);
+      throw error;
+    }
   },
 
-  // ⭐️ UPDATED: Now supports both FormData (for files) and regular JSON
   updatePost: async (id, data) => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    const isFormData = data instanceof FormData;
-    
-    return await api.put(`/posts/${id}`, data, {
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` }),
-        // Let browser set Content-Type for FormData (includes boundary)
-        ...(isFormData && { 'Content-Type': 'multipart/form-data' })
-      },
-    });
+    try {
+      const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+      const isFormData = data instanceof FormData;
+      
+      return await api.put(`/posts/${id}`, data, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          ...(isFormData && { 'Content-Type': 'multipart/form-data' })
+        },
+      });
+    } catch (error) {
+      console.error('Error in updatePost:', error);
+      throw error;
+    }
   },
 
   deletePost: async (id) => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    return await api.delete(`/posts/${id}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    try {
+      const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+      return await api.delete(`/posts/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (error) {
+      console.error('Error in deletePost:', error);
+      throw error;
+    }
   },
 
   addComment: async (postId, text) => {
-    const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    if (!token) throw new Error("Authentication token is missing.");
+    try {
+      const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
+      if (!token) throw new Error("Authentication token is missing.");
 
-    return await api.post(`/posts/${postId}/comment`, { text }, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+      return await api.post(`/posts/${postId}/comment`, { text }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      console.error('Error in addComment:', error);
+      throw error;
+    }
   },
 };
 

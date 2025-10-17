@@ -112,26 +112,48 @@ const Home = () => {
     }
 
     try {
+      console.log('Liking post:', postId);
+      console.log('Current user:', currentUser._id);
+
       const res = await PostServices.likePost(postId);
       const updatedPost = res.data;
       
+      console.log('Like successful, updated post:', updatedPost);
+
+      // Update the posts state with the updated post
       setPosts((prevPosts) =>
         prevPosts.map((post) => 
           post._id === updatedPost._id ? updatedPost : post
         )
       );
       
-      const likedByUser = updatedPost.likes.some(
-        (like) => {
-          const likeUserId = like.user?._id || like.user;
-          return likeUserId === currentUser?._id;
-        }
-      );
+      // Check if the user liked or unliked
+      const likedByUser = isPostLikedByUser(updatedPost, currentUser._id);
       toast.success(likedByUser ? "Post liked!" : "Post unliked!");
+      
     } catch (error) {
-      console.error("Like error:", error.response?.data || error.message);
+      console.error("=== Like Error (Frontend) ===");
+      console.error("Full error:", error);
+      console.error("Response data:", error.response?.data);
+      console.error("Response status:", error.response?.status);
+      
       toast.error(error.response?.data?.message || "Failed to like/unlike post");
     }
+  };
+
+  // Helper function to check if post is liked by user
+  const isPostLikedByUser = (post, userId) => {
+    if (!post || !post.likes || !userId) return false;
+    
+    return post.likes.some((like) => {
+      if (!like || !like.user) return false;
+      
+      // Handle both populated and unpopulated user references
+      const likeUserId = typeof like.user === 'object' ? like.user._id : like.user;
+      
+      // Convert both to strings for reliable comparison
+      return String(likeUserId) === String(userId);
+    });
   };
 
   const handleNavClick = (navItem) => {
@@ -317,15 +339,13 @@ const Home = () => {
             </Box>
           ) : (
             filteredPosts.map((post) => {
-              const likedByUser = post.likes.some(
-                (like) => (like.user?._id || like.user) === currentUser?._id
-              );
+              // Check if current user has liked this post
+              const likedByUser = isPostLikedByUser(post, currentUser?._id);
               
               const postUser = post.user;
               const postUserId = postUser?._id;
               const postUserName = postUser?.name || "Unknown";
 
-              // Determine media type and URL (support both old and new structure)
               const mediaUrl = post.media?.url || post.image || '';
               const mediaType = post.media?.type || (post.image ? 'image' : 'none');
               const hasMedia = mediaUrl && mediaType !== 'none';
@@ -395,7 +415,6 @@ const Home = () => {
                     </Typography>
                   </CardContent>
 
-                  {/* Media Display - Image or Video Thumbnail */}
                   {hasMedia && (
                     <Box sx={{ position: 'relative' }}>
                       {mediaType === 'video' ? (
