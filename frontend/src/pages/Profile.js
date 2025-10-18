@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Container,
   Box,
@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   Button,
-  Switch,
   Divider,
   Grid,
   AppBar,
@@ -19,17 +18,20 @@ import {
   DialogActions,
   TextField,
   Chip,
-  CircularProgress, // Added for loading state
+  CircularProgress,
+  CardMedia,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
+  useTheme,
 } from "@mui/material";
 import {
-  Settings as SettingsIcon,
   Logout as LogoutIcon,
   Edit as EditIcon,
   Home as HomeIcon,
   Leaderboard as LeaderboardIcon,
   Person as PersonIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
   Email as EmailIcon,
   Phone as PhoneIcon,
   CalendarToday as CalendarIcon,
@@ -39,37 +41,385 @@ import {
   Favorite as FavoriteIcon,
   GitHub as GitHubIcon,
   LinkedIn as LinkedInIcon,
-  Delete as DeleteIcon, // Added for post actions
+  Delete as DeleteIcon,
+  ThumbUp as ThumbUpIcon,
+  ChatBubble as ChatBubbleIcon,
+  // Visibility as VisibilityIcon, // REMOVED
+  Close as CloseIcon,
+  PersonOutline as PersonOutlineIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import DarkModeToggle, { useDarkMode } from "../components/DarkModeToggle";
-import PostServices from "../Services/PostServices"; // <--- NEW IMPORT
+import PostServices from "../Services/PostServices";
+
+// =================================================================================
+// --- Utility Functions ---
+const calculateHotnessScore = (post) => (post.likes?.length || 0) * 0.75; // Adjusted score calculation
+const isPostLikedByUser = (post, userId) => {
+    return post?.likes?.some(like => String(like.user?._id || like.user) === String(userId));
+};
+const formatRelativeTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - date) / 1000);
+
+    if (diffInSeconds < 60) return `${diffInSeconds} seconds ago`;
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)} hours ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)} days ago`;
+    return date.toLocaleDateString();
+};
+const getSpecChipLabel = (specValue) => specValue || 'General';
+
+// =================================================================================
+// --- PostCard Component ---
+
+const PostCard = React.memo(({ post, currentUser, onOpenDialog, onLike, onDeletePost, darkMode }) => {
+    const theme = useTheme();
+    const likedByUser = isPostLikedByUser(post, currentUser?._id);
+    const cardBgColor = darkMode ? theme.palette.grey[800] : theme.palette.background.paper;
+    const textColor = darkMode ? theme.palette.common.white : theme.palette.common.black;
+    const secondaryTextColor = darkMode ? theme.palette.grey[400] : theme.palette.grey[700];
+
+    return (
+        <Card 
+            sx={{ 
+                mb: 3, 
+                backgroundColor: cardBgColor, 
+                color: textColor, 
+                boxShadow: 3, 
+                transition: '0.3s',
+                '&:hover': { boxShadow: 8, transform: 'translateY(-2px)' } 
+            }}
+        >
+            <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                    {/* Title and Specs */}
+                    <Box onClick={() => onOpenDialog(post)} sx={{ cursor: 'pointer', flexGrow: 1 }}>
+                        <Typography 
+                            variant="h6" 
+                            sx={{ fontWeight: 'bold', '&:hover': { color: theme.palette.primary.light } }}
+                        >
+                            {post.title}
+                        </Typography>
+                        <Chip
+                            label={getSpecChipLabel(post.specialization)}
+                            size="small"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ mt: 0.5, color: secondaryTextColor }}
+                        />
+                    </Box>
+
+                    {/* Actions Menu (Delete) */}
+                    <IconButton 
+                        onClick={() => onDeletePost(post._id)}
+                        color="error"
+                        size="small"
+                        title="Delete Post"
+                    >
+                        <DeleteIcon />
+                    </IconButton>
+                </Box>
+
+                {/* Post Summary */}
+                <Typography 
+                    variant="body2" 
+                    sx={{ 
+                        color: secondaryTextColor, 
+                        mt: 1, 
+                        mb: 2, 
+                        overflow: 'hidden', 
+                        textOverflow: 'ellipsis', 
+                        display: '-webkit-box',
+                        WebkitLineClamp: '2',
+                        WebkitBoxOrient: 'vertical',
+                        cursor: 'pointer' 
+                    }}
+                    onClick={() => onOpenDialog(post)}
+                >
+                    {post.description}
+                </Typography>
+                
+                {/* Media Thumbnail (if exists) */}
+                {post.media?.url && (
+                    <CardMedia
+                        component="img"
+                        image={post.media.url}
+                        alt="Post Media"
+                        sx={{ maxHeight: 150, objectFit: 'cover', borderRadius: 1, mb: 2, cursor: 'pointer' }}
+                        onClick={() => onOpenDialog(post)}
+                    />
+                )}
+
+                <Divider sx={{ mb: 1.5, borderColor: darkMode ? theme.palette.grey[700] : theme.palette.grey[300] }} />
+
+                {/* Stats and Actions */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    
+                    {/* Stats */}
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                        <Chip
+                            icon={<ThumbUpIcon fontSize="small" />}
+                            label={post.likes.length}
+                            size="small"
+                            variant="outlined"
+                            sx={{ color: secondaryTextColor }}
+                        />
+                        <Chip
+                            icon={<ChatBubbleIcon fontSize="small" />}
+                            label={post.comments.length}
+                            size="small"
+                            variant="outlined"
+                            sx={{ color: secondaryTextColor }}
+                        />
+                        {/* REMOVED: VIEW COUNT CHIP */}
+                    </Box>
+
+                    {/* Like Button */}
+                    <Button
+                        onClick={() => onLike(post._id)}
+                        startIcon={<ThumbUpIcon />}
+                        variant={likedByUser ? "contained" : "outlined"}
+                        color="primary"
+                        size="small"
+                    >
+                        {likedByUser ? "Liked" : "Like"}
+                    </Button>
+                </Box>
+
+                <Typography variant="caption" sx={{ color: secondaryTextColor, mt: 1, display: 'block' }}>
+                    Posted: {formatRelativeTime(post.createdAt)}
+                </Typography>
+
+            </CardContent>
+        </Card>
+    );
+});
+
+
+// =================================================================================
+// --- FullPostDialog Component ---
+
+const FullPostDialog = React.memo(({ open, post, onClose, user, onLike, onAddComment, onNavigateProfile, newCommentText, setNewCommentText, darkMode }) => {
+    const theme = useTheme();
+    if (!post) return null;
+
+    const likedByUser = isPostLikedByUser(post, user?._id);
+    const mediaUrl = post.media?.url || post.image || '';
+
+    const dialogBgColor = darkMode ? theme.palette.grey[900] : theme.palette.background.paper;
+    const dialogTextColor = darkMode ? theme.palette.common.white : theme.palette.common.black;
+    const secondaryTextColor = darkMode ? theme.palette.grey[400] : theme.palette.grey[700];
+
+    const handleCommentChange = (e) => {
+        setNewCommentText(prev => ({ ...prev, [post._id]: e.target.value }));
+    };
+
+    const handlePostComment = () => {
+        onAddComment(post._id);
+    };
+
+    return (
+        <Dialog 
+            open={open} 
+            onClose={onClose} 
+            maxWidth="md" 
+            fullWidth
+            PaperProps={{ sx: { backgroundColor: dialogBgColor, color: dialogTextColor, borderRadius: 2 } }}
+        >
+            <DialogTitle sx={{ borderBottom: `1px solid ${darkMode ? theme.palette.grey[700] : theme.palette.grey[300]}` }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                        {post.title}
+                    </Typography>
+                    <IconButton onClick={onClose} sx={{ color: dialogTextColor }}>
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+            </DialogTitle>
+            
+            <DialogContent dividers sx={{ p: 0, '& .MuiDialogContent-dividers': { border: 'none' } }}>
+                <Grid container>
+                    {/* Left Column: Post Content */}
+                    <Grid item xs={12} sm={8} sx={{ p: 3 }}>
+                        <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Chip 
+                                label={getSpecChipLabel(post.specialization)} 
+                                size="small" 
+                                color="primary" 
+                                variant="outlined" 
+                                sx={{ color: dialogTextColor }}
+                            />
+                            <Typography variant="caption" sx={{ color: secondaryTextColor }}>
+                                • Posted {formatRelativeTime(post.createdAt)}
+                            </Typography>
+                        </Box>
+
+                        {mediaUrl && (
+                            <CardMedia
+                                component="img"
+                                image={mediaUrl}
+                                alt={post.title}
+                                sx={{ maxHeight: 400, objectFit: 'contain', borderRadius: 1, mb: 3 }}
+                            />
+                        )}
+
+                        <Typography variant="body1" sx={{ color: dialogTextColor, whiteSpace: 'pre-wrap', mb: 3 }}>
+                            {post.description}
+                        </Typography>
+
+                        <Divider sx={{ mb: 2, borderColor: darkMode ? theme.palette.grey[700] : theme.palette.grey[300] }} />
+
+                        {/* Actions and Stats */}
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <Button
+                                onClick={() => onLike(post._id)}
+                                startIcon={<ThumbUpIcon />}
+                                variant={likedByUser ? "contained" : "outlined"}
+                                color="primary"
+                            >
+                                {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
+                            </Button>
+                            {/* REMOVED: VIEW COUNT CHIP */}
+                            <Chip 
+                                icon={<ChatBubbleIcon fontSize="small" />}
+                                label={`${post.comments.length} Comments`}
+                                size="small" 
+                                variant="outlined"
+                                sx={{ color: secondaryTextColor }}
+                            />
+                        </Box>
+                    </Grid>
+
+                    {/* Right Column: Comments */}
+                    <Grid item xs={12} sm={4} sx={{ 
+                        p: 2, 
+                        borderLeft: `1px solid ${darkMode ? theme.palette.grey[700] : theme.palette.grey[300]}`,
+                        height: '70vh', 
+                        overflowY: 'auto',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        <Typography variant="h6" sx={{ color: dialogTextColor, fontWeight: 'bold', mb: 2 }}>
+                            Comments ({post.comments.length})
+                        </Typography>
+
+                        <List sx={{ flexGrow: 1, overflowY: 'auto', mb: 2 }}>
+                            {post.comments.length === 0 ? (
+                                <Typography variant="body2" sx={{ color: secondaryTextColor, textAlign: 'center', mt: 2 }}>
+                                    Be the first to comment!
+                                </Typography>
+                            ) : (
+                                post.comments.map((comment) => (
+                                    <ListItem 
+                                        key={comment._id} 
+                                        alignItems="flex-start" 
+                                        sx={{ borderBottom: `1px dotted ${secondaryTextColor}40`, py: 1 }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 40 }}>
+                                            <Avatar 
+                                                onClick={() => onNavigateProfile(comment.user?._id)} 
+                                                sx={{ width: 28, height: 28, cursor: 'pointer', bgcolor: theme.palette.primary.main }}
+                                            >
+                                                {comment.user?.name?.charAt(0).toUpperCase() || <PersonOutlineIcon fontSize="small" />}
+                                            </Avatar>
+                                        </ListItemIcon>
+                                        <ListItemText
+                                            primary={
+                                                <Typography 
+                                                    variant="subtitle2" 
+                                                    sx={{ 
+                                                        fontWeight: 'bold', 
+                                                        color: dialogTextColor, 
+                                                        cursor: 'pointer',
+                                                        '&:hover': { textDecoration: 'underline' }
+                                                    }}
+                                                    onClick={() => onNavigateProfile(comment.user?._id)}
+                                                >
+                                                    {comment.user?.name || 'Anonymous User'}
+                                                </Typography>
+                                            }
+                                            secondary={
+                                                <React.Fragment>
+                                                    <Typography
+                                                        component="span"
+                                                        variant="body2"
+                                                        sx={{ color: dialogTextColor, display: 'block' }}
+                                                    >
+                                                        {comment.text}
+                                                    </Typography>
+                                                    <Typography component="span" variant="caption" color={secondaryTextColor}>
+                                                        {formatRelativeTime(comment.createdAt)}
+                                                    </Typography>
+                                                </React.Fragment>
+                                            }
+                                        />
+                                    </ListItem>
+                                ))
+                            )}
+                        </List>
+
+                        {/* Comment Input */}
+                        {user?.token && (
+                            <Box sx={{ mt: 'auto', pt: 2, borderTop: `1px solid ${darkMode ? theme.palette.grey[700] : theme.palette.grey[300]}` }}>
+                                <TextField
+                                    fullWidth
+                                    label="Write a comment..."
+                                    variant="outlined"
+                                    multiline
+                                    rows={2}
+                                    value={newCommentText[post._id] || ''}
+                                    onChange={handleCommentChange}
+                                    sx={{ mb: 1, 
+                                        '& .MuiInputLabel-root': { color: secondaryTextColor },
+                                        '& .MuiOutlinedInput-root': { color: dialogTextColor, '& fieldset': { borderColor: secondaryTextColor } } 
+                                    }}
+                                />
+                                <Button
+                                    onClick={handlePostComment}
+                                    variant="contained"
+                                    color="primary"
+                                    fullWidth
+                                    disabled={!newCommentText[post._id]?.trim()}
+                                >
+                                    Post Comment
+                                </Button>
+                            </Box>
+                        )}
+                    </Grid>
+                </Grid>
+            </DialogContent>
+        </Dialog>
+    );
+});
+
+
+// =================================================================================
+// --- Profile Component ---
 
 const Profile = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [activeNav, setActiveNav] = useState("profile");
   const darkMode = useDarkMode();
-  const [openSettings, setOpenSettings] = useState(false);
   const [openEditProfile, setOpenEditProfile] = useState(false);
   
-  // --- NEW STATE FOR POSTS ---
+  // --- STATE FOR POSTS AND DIALOG ---
   const [userPosts, setUserPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
-  // ---------------------------
+  const [postDialogOpen, setPostDialogOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [newCommentText, setNewCommentText] = useState({});
+  // -------------------------------------------
 
   const [editForm, setEditForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    bio: "",
-    university: "",
-    major: "",
-    year: "",
-    github: "",
-    linkedin: "",
+    name: "", email: "", phone: "", bio: "", university: "", major: "", 
+    year: "", github: "", linkedin: "",
   });
   const navigate = useNavigate();
+  const theme = useTheme();
 
   // Dark mode colors
   const bgColor = darkMode ? "#1a1a1a" : "#f5f5f5";
@@ -77,32 +427,51 @@ const Profile = () => {
   const textColor = darkMode ? "#ffffff" : "#000000";
   const secondaryTextColor = darkMode ? "#b0b0b0" : "#666666";
 
+  // --- Utility function to update a post in the local state ---
+  const updatePostInState = useCallback((updatedPost) => {
+    const postWithScore = { 
+        ...updatedPost, 
+        hotnessScore: calculateHotnessScore(updatedPost) 
+    };
+
+    setUserPosts((prevPosts) => {
+        const updated = prevPosts.map((post) => 
+            post._id === updatedPost._id ? postWithScore : post
+        );
+        return updated;
+    });
+
+    if (selectedPost && selectedPost._id === updatedPost._id) {
+        setSelectedPost(postWithScore);
+    }
+  }, [selectedPost]);
+
   // Update currentUser on mount
   const updateUser = () => {
     const user = JSON.parse(localStorage.getItem("todoapp"));
     setCurrentUser(user);
     if (user) {
       setEditForm({
-        name: user.name || "",
-        email: user.email || "",
-        phone: user.phone || "",
-        bio: user.bio || "",
-        university: user.university || "",
-        major: user.major || "",
-        year: user.year || "",
-        github: user.github || "",
-        linkedin: user.linkedin || "",
+        name: user.name || "", email: user.email || "", phone: user.phone || "",
+        bio: user.bio || "", university: user.university || "", major: user.major || "",
+        year: user.year || "", github: user.github || "", linkedin: user.linkedin || "",
       });
     }
   };
 
-  // --- NEW: Fetch user's posts ---
+  // --- Fetch user's posts (only my posts) ---
   const fetchUserPosts = async () => {
     setLoadingPosts(true);
     try {
-      // The API call to get posts for the logged-in user
       const response = await PostServices.getMyPosts();
-      setUserPosts(response.data);
+      const fetchedPosts = response.data.map(post => ({
+          ...post,
+          likes: post.likes || [],
+          comments: post.comments || [],
+          // Removed views: post.views || 0,
+          hotnessScore: calculateHotnessScore(post)
+      }));
+      setUserPosts(fetchedPosts);
     } catch (error) {
       console.error("Error fetching user posts:", error);
       toast.error("Could not load your posts.");
@@ -113,11 +482,9 @@ const Profile = () => {
 
   useEffect(() => {
     updateUser();
-
     if (JSON.parse(localStorage.getItem("todoapp"))) {
-        fetchUserPosts(); // Fetch posts on mount if logged in
+        fetchUserPosts();
     }
-
     window.addEventListener("storage", updateUser);
     return () => window.removeEventListener("storage", updateUser);
   }, []);
@@ -125,14 +492,9 @@ const Profile = () => {
   // Navigation handlers
   const handleNavClick = (navItem) => {
     setActiveNav(navItem);
-    if (navItem === "home") {
-      navigate("/home");
-    } else if (navItem === "leaderboard") {
-      navigate("/leaderboard");
-    } else if (navItem === "profile") {
-      navigate("/profile");
-    }
-    // If navItem is 'my-posts', we just change the activeNav state, staying on the /profile route
+    if (navItem === "home") navigate("/home");
+    else if (navItem === "leaderboard") navigate("/leaderboard");
+    else if (navItem === "profile") navigate("/profile");
   };
 
   // Logout
@@ -143,124 +505,106 @@ const Profile = () => {
     navigate("/auth");
   };
 
-  // Toggle dark mode
-  const handleDarkModeToggle = () => {
-    const newMode = !darkMode;
-    localStorage.setItem("darkMode", newMode.toString());
-    window.dispatchEvent(new Event('darkModeChange'));
-    toast.success(`${newMode ? "Dark" : "Light"} mode enabled`);
-  };
-
-  // Handle edit profile
-  const handleEditProfile = () => {
-    setOpenEditProfile(true);
-  };
-
+  // Profile Edit Handlers (omitted for brevity)
+  const handleEditProfile = () => setOpenEditProfile(true);
   const handleSaveProfile = () => {
-    // Update user in localStorage
-    const updatedUser = {
-      ...currentUser,
-      ...editForm,
-    };
-    localStorage.setItem("todoapp", JSON.stringify(updatedUser));
-    setCurrentUser(updatedUser);
-    setOpenEditProfile(false);
-    toast.success("Profile updated successfully");
+      const updatedUser = { ...currentUser, ...editForm };
+      localStorage.setItem("todoapp", JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
+      setOpenEditProfile(false);
+      toast.success("Profile updated successfully");
   };
-
   const handleInputChange = (e) => {
-    setEditForm({
-      ...editForm,
-      [e.target.name]: e.target.value,
-    });
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+  
+  // --- Post Interaction Handlers ---
+  const handleLike = async (postId) => {
+      if (!currentUser?.token) {
+          toast.error("You must be logged in to like a post");
+          return;
+      }
+      try {
+          const res = await PostServices.likePost(postId);
+          updatePostInState(res.data);
+          const likedByUser = isPostLikedByUser(res.data, currentUser._id);
+          toast.success(likedByUser ? "Post liked! 👍" : "Post unliked! 👎");
+      } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to like/unlike post");
+      }
   };
 
-  // Placeholder for a full post deletion handler
-  const handleDeletePost = (postId) => {
-    toast(`Simulating deletion of post ${postId}...`, { icon: '⏳' });
-    // In a real app, you would call PostServices.deletePost(postId) here
-    // and then call fetchUserPosts() again to refresh the list.
+  const handleAddComment = async (postId) => {
+      const text = newCommentText[postId]?.trim();
+      if (!text) {
+          toast.error("Comment cannot be empty.");
+          return;
+      }
+      try {
+          const res = await PostServices.addComment(postId, text);
+          updatePostInState(res.data);
+          setNewCommentText(prev => ({ ...prev, [postId]: "" }));
+          toast.success("Comment added! 💬");
+      } catch (error) {
+          toast.error(error.response?.data?.message || "Failed to add comment.");
+      }
   };
+
+  // UPDATED: Removed all view tracking logic
+  const handleOpenPostDialog = (post) => {
+      setSelectedPost(post);
+      setPostDialogOpen(true);
+      // Removed PostServices.incrementViews(post._id) call
+  };
+
+  const handleClosePostDialog = () => {
+      setPostDialogOpen(false);
+      setSelectedPost(null);
+  };
+  
+  const handleViewProfile = (userId) => {
+    setPostDialogOpen(false); 
+    if (userId) {
+      if (userId === currentUser?._id) navigate("/profile");
+      else navigate(`/profile-view/${userId}`);
+    } else {
+      toast.error("User information is unavailable.");
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+        await PostServices.deletePost(postId);
+        setUserPosts(prevPosts => prevPosts.filter(post => post._id !== postId));
+        toast.success("Post deleted successfully! 👋");
+    } catch (error) {
+        toast.error(error.response?.data?.message || "Failed to delete post.");
+    }
+  };
+  // -----------------------------------------
 
   if (!currentUser) {
-    return (
-      <Box sx={{ minHeight: "100vh", backgroundColor: bgColor }}>
-        <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
-          <Toolbar>
-            <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
-              MyApp
-            </Typography>
-            <DarkModeToggle />
-          </Toolbar>
-        </AppBar>
-        <Container sx={{ mt: 8, textAlign: "center" }}>
-          <Typography variant="h5" sx={{ mb: 3, color: textColor }}>
-            Please log in to view your profile
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate("/auth")}
-          >
-            Go to Login
-          </Button>
-        </Container>
-      </Box>
-    );
+    return <Container sx={{ pt: 10, textAlign: 'center' }}><Typography variant="h5">Please log in to view your profile.</Typography></Container>;
   }
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: bgColor, transition: "background-color 0.3s" }}>
-      {/* Navigation Bar (omitted for brevity, assume it's unchanged) */}
+      {/* Navigation Bar */}
       <AppBar position="static" color="default" elevation={1} sx={{ backgroundColor: cardBgColor }}>
         <Toolbar>
           <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: "bold", color: "primary.main" }}>
             MyApp
           </Typography>
-
           <DarkModeToggle />
-
-          {/* Navigation Buttons */}
           <Box sx={{ display: "flex", gap: 1, mr: 2, ml: 2 }}>
-            <Button
-              startIcon={<HomeIcon />}
-              onClick={() => handleNavClick("home")}
-              variant={activeNav === "home" ? "contained" : "text"}
-              color="primary"
-            >
-              Home
-            </Button>
-            <Button
-              startIcon={<LeaderboardIcon />}
-              onClick={() => handleNavClick("leaderboard")}
-              variant={activeNav === "leaderboard" ? "contained" : "text"}
-              color="primary"
-            >
-              Leaderboard
-            </Button>
-            <Button
-              startIcon={<PersonIcon />}
-              onClick={() => handleNavClick("profile")}
-              variant={activeNav === "profile" ? "contained" : "text"}
-              color="primary"
-            >
-              Profile
-            </Button>
+            <Button startIcon={<HomeIcon />} onClick={() => handleNavClick("home")} variant={activeNav === "home" ? "contained" : "text"} color="primary">Home</Button>
+            <Button startIcon={<LeaderboardIcon />} onClick={() => handleNavClick("leaderboard")} variant={activeNav === "leaderboard" ? "contained" : "text"} color="primary">Leaderboard</Button>
+            <Button startIcon={<PersonIcon />} onClick={() => handleNavClick("profile")} variant={activeNav === "profile" ? "contained" : "text"} color="primary">Profile</Button>
           </Box>
-
-          {/* User Info */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Typography variant="body2" sx={{ color: textColor }}>
-              {currentUser?.name}
-            </Typography>
-            <IconButton
-              color="error"
-              onClick={handleLogout}
-              size="small"
-              title="Logout"
-            >
-              <LogoutIcon />
-            </IconButton>
+            <Typography variant="body2" sx={{ color: textColor }}>{currentUser?.name}</Typography>
+            <IconButton color="error" onClick={handleLogout} size="small" title="Logout"><LogoutIcon /></IconButton>
           </Box>
         </Toolbar>
       </AppBar>
@@ -287,6 +631,43 @@ const Profile = () => {
           </Button>
         </Box>
         
+        {/* --- CONDITIONAL CONTENT: MY POSTS TAB --- */}
+        {activeNav === "my-posts" && (
+            <Box>
+                <Typography variant="h5" sx={{ color: textColor, fontWeight: 'bold', mb: 3 }}>
+                    My Contributions
+                </Typography>
+                {loadingPosts ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                        <CircularProgress color="primary" />
+                    </Box>
+                ) : userPosts.length === 0 ? (
+                    <Card sx={{ p: 4, textAlign: 'center', backgroundColor: cardBgColor }}>
+                        <Typography variant="h6" sx={{ color: secondaryTextColor }}>
+                            You haven't posted anything yet!
+                        </Typography>
+                        <Typography variant="body1" sx={{ color: secondaryTextColor, mt: 1 }}>
+                            Create a new post to see it appear here.
+                        </Typography>
+                    </Card>
+                ) : (
+                    <Box>
+                        {userPosts.map((post) => (
+                            <PostCard
+                                key={post._id}
+                                post={post}
+                                currentUser={currentUser}
+                                onOpenDialog={handleOpenPostDialog}
+                                onLike={handleLike}
+                                onDeletePost={handleDeletePost}
+                                darkMode={darkMode}
+                            />
+                        ))}
+                    </Box>
+                )}
+            </Box>
+        )}
+        
         {/* --- CONDITIONAL CONTENT: PROFILE INFO TAB --- */}
         {activeNav === "profile" && (
           <>
@@ -294,34 +675,14 @@ const Profile = () => {
             <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
               <CardContent>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 3 }}>
-                  <Avatar
-                    sx={{
-                      width: 100,
-                      height: 100,
-                      fontSize: "2.5rem",
-                      backgroundColor: "primary.main",
-                    }}
-                  >
+                  <Avatar sx={{ width: 100, height: 100, fontSize: "2.5rem", backgroundColor: "primary.main", }}>
                     {currentUser?.name?.charAt(0).toUpperCase()}
                   </Avatar>
                   <Box sx={{ flexGrow: 1 }}>
-                    <Typography variant="h4" sx={{ fontWeight: "bold", mb: 1 }}>
-                      {currentUser?.name}
-                    </Typography>
-                    {currentUser?.bio && (
-                      <Typography variant="body1" sx={{ color: secondaryTextColor, mb: 2 }}>
-                        {currentUser.bio}
-                      </Typography>
-                    )}
-                    <Typography variant="body2" sx={{ color: secondaryTextColor, mb: 2 }}>
-                      {currentUser?.email}
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      startIcon={<EditIcon />}
-                      onClick={handleEditProfile}
-                      size="small"
-                    >
+                    <Typography variant="h4" sx={{ fontWeight: "bold", mb: 1 }}>{currentUser?.name}</Typography>
+                    {currentUser?.bio && (<Typography variant="body1" sx={{ color: secondaryTextColor, mb: 2 }}>{currentUser.bio}</Typography>)}
+                    <Typography variant="body2" sx={{ color: secondaryTextColor, mb: 2 }}>{currentUser?.email}</Typography>
+                    <Button variant="outlined" startIcon={<EditIcon />} onClick={handleEditProfile} size="small">
                       Edit Profile
                     </Button>
                   </Box>
@@ -332,9 +693,7 @@ const Profile = () => {
             {/* Education & Contact Info Card */}
             <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
               <CardContent>
-                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 2 }}>
-                  Profile Information
-                </Typography>
+                <Typography variant="h6" sx={{ fontWeight: "bold", mb: 2 }}>Profile Information</Typography>
                 <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
                 
                 <Grid container spacing={2}>
@@ -357,7 +716,6 @@ const Profile = () => {
                       </Box>
                     </Box>
                   </Grid>
-
                   {currentUser?.university && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
@@ -369,7 +727,6 @@ const Profile = () => {
                       </Box>
                     </Grid>
                   )}
-
                   {currentUser?.major && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
@@ -381,7 +738,6 @@ const Profile = () => {
                       </Box>
                     </Grid>
                   )}
-
                   {currentUser?.year && (
                     <Grid item xs={12} sm={6}>
                       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
@@ -397,42 +753,6 @@ const Profile = () => {
               </CardContent>
             </Card>
 
-            {/* Interests Card */}
-            {currentUser?.interests && currentUser.interests.length > 0 && (
-              <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
-                <CardContent>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                    <FavoriteIcon sx={{ color: "error.main" }} />
-                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>Interests</Typography>
-                  </Box>
-                  <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {currentUser.interests.map((interest, index) => (
-                      <Chip key={index} label={interest} color="primary" variant="outlined" sx={{ color: textColor }} />
-                    ))}
-                  </Box>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Skills Card */}
-            {currentUser?.skills && currentUser.skills.length > 0 && (
-              <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
-                <CardContent>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
-                    <CodeIcon sx={{ color: "success.main" }} />
-                    <Typography variant="h6" sx={{ fontWeight: "bold" }}>Skills</Typography>
-                  </Box>
-                  <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                    {currentUser.skills.map((skill, index) => (
-                      <Chip key={index} label={skill} color="success" variant="outlined" sx={{ color: textColor }} />
-                    ))}
-                  </Box>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Social Links Card */}
             {(currentUser?.github || currentUser?.linkedin) && (
               <Card sx={{ mb: 3, backgroundColor: cardBgColor, color: textColor }}>
@@ -447,12 +767,7 @@ const Profile = () => {
                           <Box>
                             <Typography variant="caption" sx={{ color: secondaryTextColor }}>GitHub</Typography>
                             <Typography variant="body1" sx={{ color: textColor }}>
-                              <a 
-                                href={`https://github.com/${currentUser.github}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                style={{ color: darkMode ? "#58a6ff" : "#0969da", textDecoration: "none" }}
-                              >
+                              <a href={`https://github.com/${currentUser.github}`} target="_blank" rel="noopener noreferrer" style={{ color: darkMode ? theme.palette.info.light : theme.palette.info.dark, textDecoration: "none" }}>
                                 @{currentUser.github}
                               </a>
                             </Typography>
@@ -460,7 +775,6 @@ const Profile = () => {
                         </Box>
                       </Grid>
                     )}
-
                     {currentUser?.linkedin && (
                       <Grid item xs={12} sm={6}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -468,13 +782,8 @@ const Profile = () => {
                           <Box>
                             <Typography variant="caption" sx={{ color: secondaryTextColor }}>LinkedIn</Typography>
                             <Typography variant="body1" sx={{ color: textColor }}>
-                              <a 
-                                href={`https://linkedin.com/in/${currentUser.linkedin}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                style={{ color: darkMode ? "#58a6ff" : "#0969da", textDecoration: "none" }}
-                              >
-                                {currentUser.linkedin}
+                              <a href={`https://linkedin.com/in/${currentUser.linkedin}`} target="_blank" rel="noopener noreferrer" style={{ color: darkMode ? theme.palette.info.light : theme.palette.info.dark, textDecoration: "none" }}>
+                                /{currentUser.linkedin}
                               </a>
                             </Typography>
                           </Box>
@@ -487,174 +796,39 @@ const Profile = () => {
             )}
           </>
         )}
-
-        {/* --- CONDITIONAL CONTENT: MY POSTS TAB --- */}
-        {activeNav === "my-posts" && (
-          <Box>
-            <Typography variant="h5" sx={{ mb: 3, color: textColor, fontWeight: "bold" }}>
-              My Published Posts
-            </Typography>
-
-            {loadingPosts ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 5 }}>
-                <CircularProgress color="primary" />
-              </Box>
-            ) : userPosts.length === 0 ? (
-              <Card sx={{ backgroundColor: cardBgColor, p: 3, textAlign: 'center' }}>
-                <Typography variant="h6" sx={{ color: secondaryTextColor }}>
-                  You haven't created any posts yet.
-                </Typography>
-                <Button variant="contained" color="primary" sx={{ mt: 2 }}>
-                    Create Your First Post
-                </Button>
-              </Card>
-            ) : (
-              <Grid container spacing={3}>
-                {userPosts.map((post) => (
-                  <Grid item xs={12} key={post._id}>
-                    <Card sx={{ backgroundColor: cardBgColor, p: 2, border: '1px solid', borderColor: darkMode ? '#333' : '#eee' }}>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Box>
-                            <Typography variant="h6" sx={{ color: 'primary.main', mb: 0.5 }}>{post.title}</Typography>
-                            <Chip 
-                                label={post.specialization} 
-                                size="small" 
-                                color="secondary" 
-                                variant="outlined"
-                                sx={{ mb: 1 }}
-                            />
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton size="small" color="primary" onClick={() => toast.success(`Edit ${post.title}`)}>
-                                <EditIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton size="small" color="error" onClick={() => handleDeletePost(post._id)}>
-                                <DeleteIcon fontSize="small" />
-                            </IconButton>
-                        </Box>
-                      </Box>
-                      <Typography variant="body2" sx={{ color: secondaryTextColor }}>
-                        {post.description.length > 200 ? `${post.description.substring(0, 200)}...` : post.description}
-                      </Typography>
-                      <Divider sx={{ my: 1, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
-                      <Typography variant="caption" sx={{ color: secondaryTextColor }}>
-                        Likes: {post.likes.length} | Created: {new Date(post.createdAt).toLocaleDateString()}
-                      </Typography>
-                    </Card>
-                  </Grid>
-                ))}
-              </Grid>
-            )}
-          </Box>
-        )}
-
-        {/* Settings Card (Always visible) */}
-        <Card sx={{ backgroundColor: cardBgColor, color: textColor, mt: 3 }}>
-          <CardContent>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-              <Typography variant="h6" sx={{ fontWeight: "bold" }}>Settings</Typography>
-              <IconButton onClick={() => setOpenSettings(true)} sx={{ color: textColor }}>
-                <SettingsIcon />
-              </IconButton>
-            </Box>
-            <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
-
-            {/* Dark Mode Toggle */}
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                {darkMode ? <DarkModeIcon sx={{ color: textColor }} /> : <LightModeIcon sx={{ color: textColor }} />}
-                <Typography variant="body1">{darkMode ? "Dark Mode" : "Light Mode"}</Typography>
-              </Box>
-              <Switch checked={darkMode} onChange={handleDarkModeToggle} color="primary" />
-            </Box>
-
-            <Divider sx={{ mb: 2, borderColor: darkMode ? "#444" : "#e0e0e0" }} />
-
-            {/* Sign Out Button */}
-            <Button
-              variant="contained"
-              color="error"
-              startIcon={<LogoutIcon />}
-              fullWidth
-              onClick={handleLogout}
-            >
-              Sign Out
-            </Button>
-          </CardContent>
-        </Card>
       </Container>
       
-      {/* Edit Profile Dialog and Settings Dialog (omitted for brevity, assume unchanged) */}
-      {/* ... Edit Profile Dialog ... */}
-      <Dialog 
-        open={openEditProfile} 
-        onClose={() => setOpenEditProfile(false)} 
-        maxWidth="sm" 
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: cardBgColor,
-            color: textColor
-          }
-        }}
-      >
-        <DialogTitle sx={{ color: textColor }}>Edit Profile</DialogTitle>
+      {/* Edit Profile Dialog */}
+      <Dialog open={openEditProfile} onClose={() => setOpenEditProfile(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Edit Profile</DialogTitle>
         <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <TextField fullWidth label="Name" name="name" value={editForm.name} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="Bio" name="bio" value={editForm.bio} onChange={handleInputChange} multiline rows={3} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="Email" name="email" type="email" value={editForm.email} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="Phone" name="phone" value={editForm.phone} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="University" name="university" value={editForm.university} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="Major" name="major" value={editForm.major} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="Year of Study" name="year" value={editForm.year} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="GitHub Username" name="github" value={editForm.github} onChange={handleInputChange} sx={{ mb: 2, '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-            <TextField fullWidth label="LinkedIn Username" name="linkedin" value={editForm.linkedin} onChange={handleInputChange} sx={{ '& .MuiInputLabel-root': { color: secondaryTextColor }, '& .MuiOutlinedInput-root': { color: textColor, '& fieldset': { borderColor: darkMode ? "#555" : "#ccc" }, '&:hover fieldset': { borderColor: darkMode ? "#777" : "#999" } } }} />
-          </Box>
+            <TextField autoFocus margin="dense" name="name" label="Name" type="text" fullWidth variant="outlined" value={editForm.name} onChange={handleInputChange} sx={{ mb: 2 }}/>
+            <TextField margin="dense" name="email" label="Email Address" type="email" fullWidth variant="outlined" value={editForm.email} onChange={handleInputChange} sx={{ mb: 2 }}/>
+            <TextField margin="dense" name="bio" label="Bio" type="text" fullWidth multiline rows={3} variant="outlined" value={editForm.bio} onChange={handleInputChange} sx={{ mb: 2 }}/>
+            <TextField margin="dense" name="university" label="University" type="text" fullWidth variant="outlined" value={editForm.university} onChange={handleInputChange} sx={{ mb: 2 }}/>
+            <TextField margin="dense" name="major" label="Major" type="text" fullWidth variant="outlined" value={editForm.major} onChange={handleInputChange} sx={{ mb: 2 }}/>
+            <TextField margin="dense" name="github" label="GitHub Username" type="text" fullWidth variant="outlined" value={editForm.github} onChange={handleInputChange} sx={{ mb: 2 }}/>
+            <TextField margin="dense" name="linkedin" label="LinkedIn Profile URL (suffix)" type="text" fullWidth variant="outlined" value={editForm.linkedin} onChange={handleInputChange} sx={{ mb: 2 }}/>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenEditProfile(false)}>Cancel</Button>
-          <Button onClick={handleSaveProfile} variant="contained" color="primary">
-            Save Changes
-          </Button>
+          <Button onClick={() => setOpenEditProfile(false)} color="secondary">Cancel</Button>
+          <Button onClick={handleSaveProfile} variant="contained" color="primary">Save Changes</Button>
         </DialogActions>
       </Dialog>
-      
-      {/* ... Settings Dialog ... */}
-      <Dialog 
-        open={openSettings} 
-        onClose={() => setOpenSettings(false)} 
-        maxWidth="sm" 
-        fullWidth
-        PaperProps={{
-          sx: {
-            backgroundColor: cardBgColor,
-            color: textColor
-          }
-        }}
-      >
-        <DialogTitle sx={{ color: textColor }}>Settings</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                {darkMode ? <DarkModeIcon sx={{ color: textColor }} /> : <LightModeIcon sx={{ color: textColor }} />}
-                <Typography variant="body1">{darkMode ? "Dark Mode" : "Light Mode"}</Typography>
-              </Box>
-              <Switch checked={darkMode} onChange={handleDarkModeToggle} color="primary" />
-            </Box>
-            
-            <Typography variant="body2" sx={{ color: secondaryTextColor }}>
-              More settings options can be added here.
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenSettings(false)} variant="contained">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+
+      {/* Full Post Dialog */}
+      <FullPostDialog
+        open={postDialogOpen}
+        post={selectedPost}
+        onClose={handleClosePostDialog}
+        user={currentUser}
+        onLike={handleLike}
+        onAddComment={handleAddComment}
+        onNavigateProfile={handleViewProfile}
+        newCommentText={newCommentText}
+        setNewCommentText={setNewCommentText}
+        darkMode={darkMode}
+      />
     </Box>
   );
 };

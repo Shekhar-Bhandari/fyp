@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   Container,
   Button,
@@ -17,10 +17,11 @@ import {
   Tab,
   Dialog,
   DialogContent,
+  DialogTitle,
   TextField,
   Collapse,
+  Tooltip,
 } from "@mui/material";
-// ⭐️ FIX: Corrected icon imports
 import ThumbUpIcon from "@mui/icons-material/ThumbUp";
 import LogoutIcon from "@mui/icons-material/Logout";
 import HomeIcon from "@mui/icons-material/Home";
@@ -50,15 +51,15 @@ const SPECIALIZATIONS = [
   { value: 'other', label: 'Other', icon: '💡' },
 ];
 
-/**
- * Utility function to format a date string into a relative time phrase 
- * (e.g., "5m ago", "3h ago", "Sep 23").
- * @param {string} dateString - The ISO 8601 creation date string (e.g., post.createdAt).
- * @returns {string} The relative time phrase.
- */
+// Utility function to get the specialization label
+const getSpecLabel = (specValue) => {
+  const spec = SPECIALIZATIONS.find(s => s.value === specValue);
+  return spec ? `${spec.icon} ${spec.label}` : specValue;
+};
+
+// Utility function to format a date string into a relative time phrase 
 const formatRelativeTime = (dateString) => {
     if (!dateString) return '';
-
     const date = new Date(dateString);
     const now = new Date();
     const seconds = Math.floor((now - date) / 1000);
@@ -76,7 +77,6 @@ const formatRelativeTime = (dateString) => {
     if (seconds < WEEK) return `${Math.floor(seconds / DAY)}d ago`;
     if (seconds < MONTH) return `${Math.floor(seconds / WEEK)}w ago`;
     
-    // For anything older than a month, show the month and day, or month and year
     const formatter = new Intl.DateTimeFormat('en-US', { 
         month: 'short', 
         day: 'numeric',
@@ -86,10 +86,43 @@ const formatRelativeTime = (dateString) => {
     return formatter.format(date);
 };
 
-// Utility function to get the specialization label (already present)
-const getSpecLabel = (specValue) => {
-  const spec = SPECIALIZATIONS.find(s => s.value === specValue);
-  return spec ? `${spec.icon} ${spec.label}` : specValue;
+
+/**
+ * Renders text, detecting and making URLs clickable.
+ */
+const renderClickableText = (text, textColor) => {
+    const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+    if (!text) return null;
+
+    const parts = [];
+    let lastIndex = 0;
+    
+    text.replace(urlRegex, (match, url, offset) => {
+        if (offset > lastIndex) {
+            parts.push(<span key={`text-${lastIndex}`} style={{ color: textColor }}>{text.substring(lastIndex, offset)}</span>);
+        }
+        
+        parts.push(
+            <a 
+                key={`link-${offset}`} 
+                href={url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{ color: '#1976D2', textDecoration: 'underline', wordBreak: 'break-all' }} 
+                onClick={(e) => e.stopPropagation()} 
+            >
+                {url}
+            </a>
+        );
+        
+        lastIndex = offset + match.length;
+    });
+
+    if (lastIndex < text.length) {
+        parts.push(<span key={`text-${lastIndex}`} style={{ color: textColor }}>{text.substring(lastIndex)}</span>);
+    }
+
+    return parts;
 };
 
 
@@ -102,8 +135,12 @@ const Home = () => {
   const [selectedSpec, setSelectedSpec] = useState("all");
   const [videoDialogOpen, setVideoDialogOpen] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
-  const [expandedPostId, setExpandedPostId] = useState(null); 
-  const [newCommentText, setNewCommentText] = useState({}); 
+  
+  // No need for a global comment text state in Home if it's only used in the dialog
+  // const [newCommentText, setNewCommentText] = useState({}); // REMOVED
+
+  const [postDialogOpen, setPostDialogOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
 
   const darkMode = useDarkMode();
   const navigate = useNavigate();
@@ -155,6 +192,21 @@ const Home = () => {
     navigate("/auth");
   };
 
+  /**
+   * Universal post update function to keep the state synchronized.
+   */
+  const updatePostInState = (updatedPost) => {
+    setPosts((prevPosts) =>
+        prevPosts.map((post) => 
+            post._id === updatedPost._id ? updatedPost : post
+        )
+    );
+    // If the dialog is open and viewing this post, update the dialog content
+    if (selectedPost && selectedPost._id === updatedPost._id) {
+        setSelectedPost(updatedPost);
+    }
+  };
+
   const handleLike = async (postId) => {
     if (!currentUser?.token) {
       toast.error("You must be logged in to like a post");
@@ -164,58 +216,47 @@ const Home = () => {
 
     try {
       const res = await PostServices.likePost(postId);
-      const updatedPost = res.data;
+      updatePostInState(res.data); // Use the universal update function
       
-      setPosts((prevPosts) =>
-        prevPosts.map((post) => 
-          post._id === updatedPost._id ? updatedPost : post
-        )
-      );
-      
-      const likedByUser = isPostLikedByUser(updatedPost, currentUser._id);
+      const likedByUser = isPostLikedByUser(res.data, currentUser._id);
       toast.success(likedByUser ? "Post liked! 👍" : "Post unliked! 👎");
       
     } catch (error) {
-      console.error("=== Like Error (Frontend) ===");
-      console.error("Full error:", error);
       toast.error(error.response?.data?.message || "Failed to like/unlike post");
     }
   };
 
-  const handleAddComment = async (postId) => {
-    const text = newCommentText[postId]?.trim();
-    if (!text) {
+  /**
+   * UPDATED: Accepts the comment text directly from the dialog.
+   * @param {string} postId 
+   * @param {string} text The comment text from the local dialog state
+   * @returns {boolean} Success status
+   */
+  const handleAddComment = useCallback(async (postId, text) => {
+    const trimmedText = text?.trim();
+    if (!trimmedText) {
       toast.error("Comment cannot be empty.");
-      return;
+      return false;
     }
     if (!currentUser?.token) {
       toast.error("You must be logged in to comment.");
       navigate("/auth");
-      return;
+      return false;
     }
 
     try {
-      const res = await PostServices.addComment(postId, text);
-      const updatedPost = res.data;
+      const res = await PostServices.addComment(postId, trimmedText);
+      updatePostInState(res.data); // Use the universal update function
 
-      setPosts((prevPosts) => 
-        prevPosts.map((post) => 
-          post._id === updatedPost._id ? updatedPost : post
-        )
-      );
-
-      setNewCommentText(prev => ({ ...prev, [postId]: "" }));
       toast.success("Comment added! 💬");
+      return true; // Indicate success
 
     } catch (error) {
-      console.error("Comment error:", error.response?.data || error.message);
       toast.error(error.response?.data?.message || "Failed to add comment.");
+      return false; // Indicate failure
     }
-  };
+  }, [currentUser, updatePostInState, navigate]);
 
-  const handleToggleComments = (postId) => {
-    setExpandedPostId(prevId => (prevId === postId ? null : postId));
-  };
 
   const isPostLikedByUser = (post, userId) => {
     if (!post || !post.likes || !userId) return false;
@@ -231,16 +272,14 @@ const Home = () => {
 
   const handleNavClick = (navItem) => {
     setActiveNav(navItem);
-    if (navItem === "home") {
-      navigate("/home");
-    } else if (navItem === "leaderboard") {
-      navigate("/leaderboard");
-    } else if (navItem === "profile") {
-      navigate("/profile");
-    }
+    if (navItem === "home") navigate("/home");
+    else if (navItem === "leaderboard") navigate("/leaderboard");
+    else if (navItem === "profile") navigate("/profile");
   };
 
   const handleViewProfile = (userId) => {
+    // Close the dialog first if it's open, then navigate
+    setPostDialogOpen(false); 
     if (userId) {
       if (userId === currentUser?._id) {
         navigate("/profile");
@@ -252,8 +291,19 @@ const Home = () => {
     }
   };
 
-  const handleVideoClick = (videoUrl) => {
-    setSelectedVideo(videoUrl);
+  // NEW HANDLERS for Full-Screen Post View
+  const handleOpenPostDialog = (post) => {
+    setSelectedPost(post);
+    setPostDialogOpen(true);
+  };
+
+  const handleClosePostDialog = () => {
+    setPostDialogOpen(false);
+    setSelectedPost(null);
+  };
+  
+  const handleVideoClick = (mediaUrl) => {
+    setSelectedVideo(mediaUrl);
     setVideoDialogOpen(true);
   };
 
@@ -261,6 +311,248 @@ const Home = () => {
     setVideoDialogOpen(false);
     setSelectedVideo(null);
   };
+  
+  // ====================================================================
+  // ⭐️ FullPostDialog Component (Updated for local state)
+  // ====================================================================
+
+  const FullPostDialog = ({ open, post, onClose, user, onLike, onAddComment, onNavigateProfile }) => {
+    // ⭐️ NEW: Local state for comment input
+    const [dialogCommentText, setDialogCommentText] = useState(""); 
+
+    // Clear local state when the dialog is opened for a new post
+    useEffect(() => {
+        if (open && post?._id) {
+            setDialogCommentText("");
+        }
+    }, [open, post?._id]);
+
+    // Local handler to call parent function and clear local state on success
+    const handleLocalAddComment = async () => {
+        // Pass the local text state to the parent's handler
+        const success = await onAddComment(post._id, dialogCommentText); 
+        
+        // Only clear the local input if the comment was successfully posted
+        if (success) {
+            setDialogCommentText("");
+        }
+    }
+
+
+    if (!post) return null;
+
+    const likedByUser = isPostLikedByUser(post, user?._id);
+    const postUser = post.user;
+    const postUserId = postUser?._id;
+    const postUserName = postUser?.name || "Unknown";
+    const relativeTime = formatRelativeTime(post.createdAt);
+    
+    const mediaUrl = post.media?.url || post.image || '';
+    const mediaType = post.media?.type || (post.image ? 'image' : 'none');
+    const hasMedia = mediaUrl && mediaType !== 'none';
+    
+    const isOwner = postUserId === user?._id;
+
+    return (
+      <Dialog 
+        open={open} 
+        onClose={onClose} 
+        maxWidth="md" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: cardBgColor,
+            color: textColor,
+            maxHeight: '90vh', // Keep a little margin
+            overflowY: 'hidden', // Dialog handles its own scrolling
+          }
+        }}
+      >
+        <DialogTitle sx={{ p: 1, borderBottom: `1px solid ${secondaryTextColor}50` }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Typography variant="h6" sx={{ fontWeight: 'bold', color: textColor }}>
+                    {post.title}
+                </Typography>
+                {post.specialization && (
+                    <Chip 
+                        label={getSpecLabel(post.specialization).split(' ').slice(1).join(' ')} 
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                        sx={{ ml: 1 }}
+                    />
+                )}
+            </Box>
+            <IconButton onClick={onClose} sx={{ color: textColor }}>
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        
+        <DialogContent dividers sx={{ p: 0, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, maxHeight: 'calc(90vh - 65px)' }}>
+            
+            {/* LEFT SIDE: Media and Full Description */}
+            <Box sx={{ 
+                flex: { xs: '1 1 100%', sm: '2 1 60%' }, 
+                p: 2, 
+                overflowY: 'auto', // Scroll for content
+                maxHeight: { xs: '40vh', sm: '100%' }
+            }}>
+                {/* User Info and Time */}
+                <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    mb: 2, 
+                    cursor: postUser ? 'pointer' : 'default' 
+                }}
+                onClick={() => onNavigateProfile(postUserId)}
+                >
+                    <Avatar sx={{ width: 32, height: 32, mr: 1, bgcolor: 'primary.main' }}>
+                        {postUserName.charAt(0).toUpperCase()}
+                    </Avatar>
+                    <Box>
+                        <Typography variant="body1" sx={{ color: 'primary.main', fontWeight: 'bold', lineHeight: 1.2 }}>
+                            {postUserName}
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: secondaryTextColor, lineHeight: 1 }}>
+                            Posted: {relativeTime}
+                        </Typography>
+                    </Box>
+                </Box>
+                
+                {/* Media Display (Full Size) */}
+                {hasMedia && (
+                    <Box sx={{ position: 'relative', mb: 2 }}>
+                        {mediaType === 'video' ? (
+                            <>
+                                <CardMedia 
+                                    component="video"
+                                    src={mediaUrl}
+                                    controls
+                                    autoPlay={false}
+                                    sx={{ 
+                                        objectFit: 'contain', 
+                                        width: '100%', 
+                                        maxHeight: '400px', 
+                                        bgcolor: 'black'
+                                    }}
+                                />
+                            </>
+                        ) : (
+                            <CardMedia 
+                                component="img" 
+                                image={mediaUrl} 
+                                alt={post.title}
+                                sx={{ objectFit: 'contain', width: '100%', maxHeight: '400px' }}
+                            />
+                        )}
+                    </Box>
+                )}
+                
+                {/* Full Description (with clickable links) */}
+                <Typography variant="body1" sx={{ mt: 2, whiteSpace: 'pre-wrap', color: textColor }}>
+                    {renderClickableText(post.description, textColor)}
+                </Typography>
+            </Box>
+            
+            {/* RIGHT SIDE: Comments and Interactions */}
+            <Box sx={{ 
+                flex: { xs: '1 1 100%', sm: '1 1 40%' }, 
+                p: 2, 
+                borderLeft: { sm: `1px solid ${secondaryTextColor}50` },
+                borderTop: { xs: `1px solid ${secondaryTextColor}50`, sm: 'none' },
+                display: 'flex', 
+                flexDirection: 'column',
+                maxHeight: { xs: 'calc(90vh - 65px - 40vh)', sm: '100%' } // Adjust height for mobile/desktop
+            }}>
+                <Typography variant="h6" sx={{ color: textColor, mb: 1, fontWeight: 'bold' }}>
+                    Interactions
+                </Typography>
+                
+                {/* Interaction Buttons */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+                    <Button
+                        onClick={() => onLike(post._id)}
+                        color={likedByUser ? "primary" : "default"}
+                        startIcon={<ThumbUpIcon fontSize="small" />} 
+                        disabled={!user?.token}
+                        variant={likedByUser ? "contained" : "outlined"}
+                        size="small" 
+                    >
+                        {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
+                    </Button>
+                    <Chip 
+                        label={`${post.comments.length} Comments`} 
+                        icon={<ChatBubbleIcon fontSize="small" />} 
+                        size="small" 
+                        variant="outlined"
+                        sx={{ ml: 1 }}
+                    />
+                </Box>
+
+                {/* Comment Input */}
+                {user?.token && (
+                    <Box sx={{ mb: 2, display: "flex", gap: 1, flexShrink: 0 }}>
+                        <TextField
+                            fullWidth
+                            variant="outlined"
+                            size="small"
+                            placeholder="Add a comment..."
+                            // ⭐️ NOW USING LOCAL STATE
+                            value={dialogCommentText}
+                            onChange={(e) => setDialogCommentText(e.target.value)}
+                            sx={{ 
+                                '& input': { color: textColor, padding: '8px 10px' }, 
+                                '& .MuiOutlinedInput-root': { 
+                                    '& fieldset': { borderColor: secondaryTextColor }, 
+                                    '&:hover fieldset': { borderColor: secondaryTextColor }, 
+                                    '&.Mui-focused fieldset': { borderColor: 'primary.main' }, 
+                                }, 
+                            }}
+                        />
+                        <Button 
+                            variant="contained" 
+                            color="primary" 
+                            // ⭐️ NOW USING LOCAL HANDLER
+                            onClick={handleLocalAddComment}
+                            size="small"
+                        >
+                            Post
+                        </Button>
+                    </Box>
+                )}
+
+                {/* Display Comments (Scrollable Section) */}
+                <Box sx={{ flexGrow: 1, overflowY: 'auto' }}>
+                    {post.comments.length > 0 ? (
+                        post.comments.slice().reverse().map((comment, i) => ( 
+                            <Box key={comment._id || i} sx={{ mb: 1, p: 1, backgroundColor: commentBgColor, borderRadius: 1 }}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                                    <Avatar sx={{ width: 20, height: 20, mr: 1, bgcolor: 'primary.light', fontSize: '0.7rem' }}>
+                                        {comment.user?.name ? comment.user.name[0] : 'A'}
+                                    </Avatar>
+                                    <Typography variant="caption" sx={{ fontWeight: "bold", color: textColor }}>
+                                        {comment.user?.name || "Anonymous"}
+                                    </Typography>
+                                </Box>
+                                <Typography variant="body2" sx={{ ml: 0.5, color: secondaryTextColor, whiteSpace: 'pre-wrap' }}>
+                                    {comment.text}
+                                </Typography>
+                            </Box>
+                        ))
+                    ) : (
+                        <Typography variant="body2" sx={{ color: secondaryTextColor, textAlign: 'center', mt: 2 }}>
+                            No comments yet. Start the conversation!
+                        </Typography>
+                    )}
+                </Box>
+            </Box>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+  // ====================================================================
 
 
   return (
@@ -286,7 +578,7 @@ const Home = () => {
             <Button
               startIcon={<LeaderboardIcon />}
               onClick={() => handleNavClick("leaderboard")}
-              variant={activeNav === "leaderboard" ? "contained" : "text"}
+              variant={activeNav === "leaderboard" ? "text" : "text"}
               color="primary"
             >
               Leaderboard
@@ -294,7 +586,7 @@ const Home = () => {
             <Button
               startIcon={<PersonIcon />}
               onClick={() => handleNavClick("profile")}
-              variant={activeNav === "profile" ? "contained" : "text"}
+              variant={activeNav === "profile" ? "text" : "text"}
               color="primary"
             >
               Profile
@@ -389,7 +681,6 @@ const Home = () => {
           </Button>
         </Grid>
 
-        {/* ⭐️ GRID CONTAINER: The spacing={3} adds space between posts */}
         <Grid container spacing={3}>
           {loading ? (
             <Grid item xs={12}>
@@ -416,80 +707,57 @@ const Home = () => {
             </Grid>
           ) : (
             filteredPosts.map((post) => {
-              const likedByUser = isPostLikedByUser(post, currentUser?._id);
-              
               const postUser = post.user;
-              const postUserId = postUser?._id;
               const postUserName = postUser?.name || "Unknown";
-
               const mediaUrl = post.media?.url || post.image || '';
-              const mediaType = post.media?.type || (post.image ? 'image' : 'none');
-              const hasMedia = mediaUrl && mediaType !== 'none';
-              const isExpanded = expandedPostId === post._id; 
-              
-              // ⭐️ NEW: Get the relative time string
+              const hasMedia = mediaUrl; 
               const relativeTime = formatRelativeTime(post.createdAt);
-
+              
+              
               return (
                 <Grid item key={post._id} xs={12} sm={6} md={4}> 
-                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: cardBgColor }}>
-                    <CardContent sx={{ pb: '16px !important' }}>
+                  <Card 
+                    sx={{ 
+                      height: '100%', 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      backgroundColor: cardBgColor,
+                      cursor: 'pointer', // Indicate clickability
+                      '&:hover': {
+                        boxShadow: 6,
+                      }
+                    }}
+                    onClick={() => handleOpenPostDialog(post)} // Click opens the dialog
+                  >
+                    
+                    {/* SHORT VIEW: Media and Title */}
+                    {hasMedia && (
+                        <CardMedia 
+                            component="img" 
+                            height="140" 
+                            image={mediaUrl} 
+                            alt={post.title}
+                            sx={{ objectFit: 'cover' }}
+                        />
+                    )}
+                    
+                    <CardContent sx={{ pb: '16px !important', flexGrow: 1 }}>
                       
-                      <Box 
-                        sx={{ 
-                          display: 'flex', 
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          mb: 1, 
-                        }}
-                      >
-                        <Box
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography 
+                          variant="body2" 
                           sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center',
+                            color: 'primary.main', 
+                            fontWeight: 'bold',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                           }}
                         >
-                          <Avatar sx={{ 
-                            width: 32, 
-                            height: 32, 
-                            mr: 1, 
-                            bgcolor: 'primary.main',
-                            cursor: postUser ? 'pointer' : 'default',
-                          }}
-                          onClick={() => handleViewProfile(postUserId)}
-                          >
-                            {postUserName.charAt(0).toUpperCase()}
-                          </Avatar>
-
-                          <Box>
-                            <Typography
-                              variant="body2" 
-                              sx={{
-                                color: postUser ? "primary.main" : textColor, 
-                                fontWeight: 'bold',
-                                lineHeight: 1.2,
-                                cursor: postUser ? 'pointer' : 'default',
-                                "&:hover": postUser ? { textDecoration: "underline" } : {}
-                              }}
-                              onClick={() => handleViewProfile(postUserId)}
-                            >
-                              {postUserName}
-                            </Typography>
-                            {/* ⭐️ NEW: Display the relative time here */}
-                            {relativeTime && (
-                                <Typography 
-                                    variant="caption" 
-                                    sx={{ color: secondaryTextColor, lineHeight: 1 }}
-                                >
-                                    {relativeTime}
-                                </Typography>
-                            )}
-                          </Box>
-                        </Box>
-
+                          {postUserName} &bull; {relativeTime}
+                        </Typography>
                         {post.specialization && (
                           <Chip 
-                            // Using split(' ')[1] to get only the label part from "🌐 Web Dev"
                             label={getSpecLabel(post.specialization).split(' ').slice(1).join(' ')} 
                             size="small"
                             color="primary"
@@ -500,151 +768,44 @@ const Home = () => {
 
                       <Typography 
                         variant="subtitle1" 
-                        sx={{ fontWeight: "bold", color: textColor, mt: 1, mb: 0.5 }}
+                        sx={{ fontWeight: "bold", color: textColor, mt: 0.5, mb: 0.5, 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          display: '-webkit-box',
+                          WebkitLineClamp: 1, 
+                          WebkitBoxOrient: 'vertical',
+                        }}
                       >
                         {post.title}
                       </Typography>
-                      <Typography variant="body2" sx={{ mb: 1.5, color: textColor, 
+                      
+                      <Typography variant="body2" sx={{ mb: 1.5, color: secondaryTextColor, 
                         overflow: 'hidden', 
                         textOverflow: 'ellipsis', 
                         display: '-webkit-box',
-                        WebkitLineClamp: 2, 
+                        WebkitLineClamp: 2, // Only show 2 lines of description
                         WebkitBoxOrient: 'vertical',
                       }}>
                         {post.description}
                       </Typography>
+                      
                     </CardContent>
 
-                    {/* Media Section (Image/Video) */}
-                    {hasMedia && (
-                      <Box sx={{ position: 'relative', flexGrow: 1 }}>
-                        {mediaType === 'video' ? (
-                          <>
-                            <CardMedia 
-                              component="video"
-                              height="180px" 
-                              src={mediaUrl}
-                              sx={{ 
-                                borderTop: `1px solid ${darkMode ? '#333' : '#eee'}`,
-                                objectFit: 'cover', 
-                                cursor: 'pointer'
-                              }}
-                              onClick={() => handleVideoClick(mediaUrl)}
-                            />
-                            <Box
-                              sx={{
-                                position: 'absolute',
-                                top: '50%',
-                                left: '50%',
-                                transform: 'translate(-50%, -50%)',
-                                cursor: 'pointer',
-                                pointerEvents: 'none'
-                              }}
-                            >
-                              <PlayCircleOutlineIcon 
-                                sx={{ 
-                                  fontSize: 60, 
-                                  color: 'white',
-                                  opacity: 0.9,
-                                  filter: 'drop-shadow(0 0 8px rgba(0,0,0,0.5))'
-                                }} 
-                              />
-                            </Box>
-                          </>
-                        ) : (
-                          <CardMedia 
-                            component="img" 
-                            height="180px" 
-                            image={mediaUrl} 
-                            alt={post.title}
-                            sx={{ 
-                              borderTop: `1px solid ${darkMode ? '#333' : '#eee'}`,
-                              objectFit: 'cover' 
-                            }}
-                          />
-                        )}
-                      </Box>
-                    )}
-                    
-                    {/* Interaction Buttons and Comments */}
-                    <CardContent sx={{ pt: 1, mt: 'auto' }}> 
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-                        <Button
-                          onClick={() => handleLike(post._id)}
-                          color={likedByUser ? "primary" : "default"}
-                          startIcon={<ThumbUpIcon fontSize="small" />} 
-                          disabled={!currentUser?.token}
-                          variant={likedByUser ? "contained" : "outlined"}
-                          size="small" 
-                        >
-                          {post.likes.length} Like{post.likes.length !== 1 ? "s" : ""}
-                        </Button>
-                        
-                        <Button
-                          onClick={() => handleToggleComments(post._id)}
-                          color="secondary"
-                          startIcon={<ChatBubbleIcon fontSize="small" />} 
-                          variant={isExpanded ? "contained" : "outlined"}
-                          size="small" 
-                        >
-                          {post.comments.length} Comment{post.comments.length !== 1 ? "s" : ""}
-                        </Button>
-                      </Box>
-
-                      {/* COLLAPSIBLE COMMENT SECTION */}
-                      <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                        <Box sx={{ p: 1.5, borderTop: `1px solid ${secondaryTextColor}50`, backgroundColor: commentBgColor, borderRadius: 1, mt: 1 }}>
-                          
-                          {/* Comment Input */}
-                          {currentUser?.token && (
-                            <Box sx={{ mb: 1, display: "flex", gap: 0.5 }}>
-                              <TextField
-                                fullWidth
-                                variant="outlined"
-                                size="small"
-                                placeholder="Add a comment..."
-                                value={newCommentText[post._id] || ""}
-                                onChange={(e) => setNewCommentText(prev => ({ ...prev, [post._id]: e.target.value }))}
-                                sx={{ 
-                                  '& input': { color: textColor, padding: '8px 10px' }, 
-                                  '& .MuiOutlinedInput-root': { 
-                                    '& fieldset': { borderColor: secondaryTextColor }, 
-                                    '&:hover fieldset': { borderColor: secondaryTextColor }, 
-                                    '&.Mui-focused fieldset': { borderColor: 'primary.main' }, 
-                                  }, 
-                                }}
-                              />
-                              <Button 
-                                variant="contained" 
-                                color="primary" 
-                                onClick={() => handleAddComment(post._id)}
-                                size="small"
-                              >
-                                Post
-                              </Button>
-                            </Box>
-                          )}
-
-                          {/* Display Comments (Show up to the latest 5) */}
-                          {post.comments.length > 0 ? (
-                            post.comments.slice().reverse().slice(0, 5).map((comment, i) => ( 
-                              <Box key={comment._id || i} sx={{ mb: 0.5, p: 0.5, backgroundColor: cardBgColor, borderRadius: 1 }}>
-                                <Typography variant="caption" sx={{ fontWeight: "bold", color: textColor, display: 'block' }}>
-                                  {comment.user?.name || "Anonymous"}:
-                                </Typography>
-                                <Typography variant="caption" sx={{ ml: 0.5, color: secondaryTextColor, display: 'block' }}>
-                                  {comment.text}
-                                </Typography>
-                              </Box>
-                            ))
-                          ) : (
-                            <Typography variant="caption" sx={{ color: secondaryTextColor, textAlign: 'center', display: 'block' }}>
-                              No comments yet. Be the first!
-                            </Typography>
-                          )}
-                        </Box>
-                      </Collapse>
-                    </CardContent>
+                    {/* SHORT VIEW: Likes and Comments count only */}
+                    <Box sx={{ p: 2, borderTop: `1px solid ${secondaryTextColor}20`, display: "flex", alignItems: "center", gap: 2, mt: 'auto' }}>
+                        <Chip 
+                            icon={<ThumbUpIcon fontSize="small" />} 
+                            label={post.likes.length} 
+                            size="small" 
+                            variant="outlined"
+                        />
+                        <Chip 
+                            icon={<ChatBubbleIcon fontSize="small" />} 
+                            label={post.comments.length} 
+                            size="small" 
+                            variant="outlined"
+                        />
+                    </Box>
                   </Card>
                 </Grid>
               );
@@ -652,32 +813,31 @@ const Home = () => {
           )}
         </Grid>
       </Container>
+      
+      {/* ⭐️ Full Post View Dialog */}
+      <FullPostDialog 
+        open={postDialogOpen}
+        post={selectedPost}
+        onClose={handleClosePostDialog}
+        user={currentUser}
+        onLike={handleLike}
+        onAddComment={handleAddComment} // Passed the updated handler
+        onNavigateProfile={handleViewProfile}
+      />
 
-      {/* Video Dialog (Unchanged) */}
+      {/* Video Dialog (Kept separate) */}
       <Dialog
         open={videoDialogOpen}
         onClose={handleCloseVideo}
         maxWidth="md"
         fullWidth
         PaperProps={{
-          sx: {
-            backgroundColor: darkMode ? '#1a1a1a' : '#ffffff',
-          }
+          sx: { backgroundColor: darkMode ? '#1a1a1a' : '#ffffff', }
         }}
       >
         <IconButton
           onClick={handleCloseVideo}
-          sx={{
-            position: 'absolute',
-            right: 8,
-            top: 8,
-            color: 'white',
-            bgcolor: 'rgba(0,0,0,0.5)',
-            zIndex: 1,
-            '&:hover': {
-              bgcolor: 'rgba(0,0,0,0.7)'
-            }
-          }}
+          sx={{ position: 'absolute', right: 8, top: 8, color: 'white', bgcolor: 'rgba(0,0,0,0.5)', zIndex: 1, '&:hover': { bgcolor: 'rgba(0,0,0,0.7)' } }}
         >
           <CloseIcon />
         </IconButton>
@@ -687,12 +847,7 @@ const Home = () => {
               src={selectedVideo}
               controls
               autoPlay
-              style={{
-                width: '100%',
-                height: 'auto',
-                maxHeight: '80vh',
-                display: 'block'
-              }}
+              style={{ width: '100%', height: 'auto', maxHeight: '80vh', display: 'block' }}
             />
           )}
         </DialogContent>

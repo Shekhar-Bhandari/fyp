@@ -1,4 +1,5 @@
 // src/pages/CreatePost.js
+
 import React, { useState, useEffect } from "react";
 import { 
   Container, 
@@ -23,6 +24,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 
 const SPECIALIZATIONS = [
+  // ... (Your SPECIALIZATIONS array)
   { value: 'web-dev', label: 'Web Development' },
   { value: 'mobile-dev', label: 'Mobile App Development' },
   { value: 'ai-ml', label: 'AI/ML' },
@@ -37,6 +39,10 @@ const SPECIALIZATIONS = [
   { value: 'other', label: 'Other' },
 ];
 
+// ⭐️ MATCH THIS LIMIT to the Mongoose Schema's maxlength
+const MAX_TITLE_LENGTH = 200; 
+
+
 const CreatePost = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -49,8 +55,13 @@ const CreatePost = () => {
 
   useEffect(() => {
     const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
-    if (!token) navigate("/auth");
+    if (!token) {
+        toast.error("Please log in to create a post.");
+        navigate("/auth");
+    }
   }, [navigate]);
+
+  // ... (handleFileChange and handleRemoveMedia functions remain the same)
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -84,12 +95,18 @@ const CreatePost = () => {
     setMediaPreview(null);
     setMediaType(null);
   };
-
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!specialization) {
-      toast.error("Please select a specialization");
+    if (!title.trim() || !description.trim() || !specialization) {
+      toast.error("Title, description, and specialization are required.");
+      return;
+    }
+    
+    // ⭐️ FRONTEND VALIDATION: Check the title length before submitting
+    if (title.trim().length > MAX_TITLE_LENGTH) {
+      toast.error(`Title cannot exceed ${MAX_TITLE_LENGTH} characters.`);
       return;
     }
 
@@ -97,8 +114,8 @@ const CreatePost = () => {
 
     try {
       const formData = new FormData();
-      formData.append('title', title);
-      formData.append('description', description);
+      formData.append('title', title.trim());
+      formData.append('description', description.trim());
       formData.append('specialization', specialization);
       
       if (mediaFile) {
@@ -106,10 +123,11 @@ const CreatePost = () => {
       }
 
       await PostServices.createPost(formData);
-      toast.success("Post created successfully!");
+      toast.success("Post created successfully! 🎉");
       navigate("/home");
     } catch (error) {
-      toast.error(error.response?.data?.message || "Error creating post");
+      const errorMessage = error.response?.data?.message || "Error creating post.";
+      toast.error(errorMessage);
       console.error(error);
     } finally {
       setUploading(false);
@@ -128,8 +146,16 @@ const CreatePost = () => {
           fullWidth
           required
           value={title}
+          // ⭐️ Limit input length in the DOM
+          inputProps={{ maxLength: MAX_TITLE_LENGTH }} 
           onChange={(e) => setTitle(e.target.value)}
           sx={{ mb: 2 }}
+          
+          // ⭐️ Display error state if limit is exceeded
+          error={title.length > MAX_TITLE_LENGTH} 
+          
+          // ⭐️ Provide helpful character counter text
+          helperText={`${title.length}/${MAX_TITLE_LENGTH} characters`}
         />
         
         <TextField
@@ -143,6 +169,7 @@ const CreatePost = () => {
           sx={{ mb: 2 }}
         />
 
+        {/* ... (Rest of the specialization and file upload controls remain the same) ... */}
         <FormControl fullWidth required sx={{ mb: 2 }}>
           <InputLabel id="specialization-label">Specialization</InputLabel>
           <Select
@@ -184,23 +211,14 @@ const CreatePost = () => {
                   height="250"
                   image={mediaPreview}
                   alt="Preview"
+                  sx={{ objectFit: 'contain', bgcolor: 'background.default' }}
                 />
               ) : (
                 <Box sx={{ position: 'relative' }}>
                   <video
                     src={mediaPreview}
+                    controls
                     style={{ width: '100%', height: '250px', objectFit: 'cover' }}
-                  />
-                  <PlayCircleOutlineIcon 
-                    sx={{ 
-                      position: 'absolute', 
-                      top: '50%', 
-                      left: '50%', 
-                      transform: 'translate(-50%, -50%)',
-                      fontSize: 60,
-                      color: 'white',
-                      opacity: 0.8
-                    }} 
                   />
                 </Box>
               )}
@@ -220,13 +238,14 @@ const CreatePost = () => {
           )}
         </Box>
 
+
         <Button 
           type="submit" 
           variant="contained" 
           color="primary"
           fullWidth
-          disabled={uploading}
-          startIcon={uploading && <CircularProgress size={20} />}
+          disabled={uploading || title.length > MAX_TITLE_LENGTH}
+          startIcon={uploading && <CircularProgress size={20} color="inherit" />}
         >
           {uploading ? 'Creating Post...' : 'Create Post'}
         </Button>

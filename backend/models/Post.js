@@ -68,9 +68,32 @@ const PostSchema = new mongoose.Schema({
       type: Date,
       default: Date.now
     }
-  }]
+  }],
+  
+  // ⭐️ START: NEW FIELDS FOR SEASONAL LEADERBOARD ⭐️
+  
+  // 1. Seasonal Ranking Stats: Scores used ONLY for the current leaderboard calculation.
+  rankingStats: {
+    likesCount: { 
+      type: Number, 
+      default: 0 
+    },
+    commentsCount: { 
+      type: Number, 
+      default: 0 
+    },
+  },
+  
+  // 2. Reset Timestamp: Tracks when the rankingStats were last zeroed out.
+  rankingResetAt: {
+    type: Date,
+    default: Date.now, // Defaults to creation time initially
+  }
+  
+  // ⭐️ END: NEW FIELDS FOR SEASONAL LEADERBOARD ⭐️
+  
 }, {
-  timestamps: true
+  timestamps: true // Keeps createdAt and updatedAt
 });
 
 module.exports = mongoose.model('Post', PostSchema);

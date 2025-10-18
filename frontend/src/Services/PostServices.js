@@ -18,6 +18,32 @@ const PostServices = {
     }
   },
   
+  // === NEW FUNCTION ADDED TO FIX THE ERROR ===
+  incrementViews: async (id) => {
+    try {
+      const user = JSON.parse(localStorage.getItem("todoapp"));
+      const token = user?.token;
+
+      if (!token) {
+        // If the user is not logged in, we might allow a view but skip authentication
+        // or just log an error if the backend requires authentication for this endpoint.
+        // Assuming the backend still tracks the view without authentication for simplicity here,
+        // but if it requires a token, you'd handle the error or return early.
+      }
+
+      // API call to the backend endpoint to increment the view count
+      return await api.put(`/posts/${id}/view`, {}, { 
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch (error) {
+      console.error('Error in incrementViews:', error);
+      // We often silence this error slightly since view counts are non-critical,
+      // but we throw it for consistency.
+      throw error;
+    }
+  },
+  // ============================================
+
   getMyPosts: async () => {
     try {
       const token = JSON.parse(localStorage.getItem("todoapp"))?.token;
@@ -44,7 +70,6 @@ const PostServices = {
       console.log('User ID:', user._id);
       console.log('Token exists:', !!token);
 
-      // 💡 CRITICAL FIX: Replaced 'null' with an empty object {} to satisfy the JSON parser.
       const response = await api.put(`/posts/${id}/like`, {}, {
         headers: { 
           Authorization: `Bearer ${token}`,
